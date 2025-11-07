@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Peta Arus Laut & Suhu</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet-velocity@1.1.0/dist/leaflet-velocity.min.css" /> 
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+
+    <style>
+        /* Import Font */
+        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap');
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        #mapid {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 100%;
+        }
+
+        /* --- CSS Legenda Anda (Sudah Baik) --- */
+        .legend { padding: 6px 8px; font: 14px/16px Arial, Helvetica, sans-serif; background: rgba(255,255,255,0.8); box-shadow: 0 0 15px rgba(0,0,0,0.2); border-radius: 5px; line-height: 18px; color: #555; z-index: 1000; }
+        .legend i { width: 18px; height: 18px; float: left; margin-right: 8px; opacity: 0.7; }
+
+        /* --- CSS Zoom Control Anda (Sudah Baik) --- */
+        .leaflet-touch .leaflet-control-zoom, .leaflet-control-zoom { border: none !important; background-color: transparent !important; box-shadow: none !important; }
+        .leaflet-control-zoom a.leaflet-control-zoom-in, .leaflet-control-zoom a.leaflet-control-zoom-out { width: 34px !important; height: 34px !important; line-height: 34px !important; font-size: 24px; font-weight: bold; border-radius: 50% !important; background-color: white !important; color: #333 !important; border: 1px solid #ccc !important; box-shadow: 0 2px 5px rgba(0,0,0,0.2); transition: background-color 0.2s; }
+        .leaflet-control-zoom a.leaflet-control-zoom-in { margin-bottom: 10px !important; }
+        .leaflet-control-zoom-in:focus, .leaflet-control-zoom-out:focus { outline: none; }
+        .leaflet-control-zoom a.leaflet-control-zoom-in:hover, .leaflet-control-zoom a.leaflet-control-zoom-out:hover { background-color: #f4f4f4 !important; }
+
+        /* --- CSS BARU UNTUK SIDEBAR --- */
+        .sidebar { position: absolute; top: 20px; left: 20px; width: 300px; background-color: rgba(255, 255, 255, 0.8); backdrop-filter: blur(10px); border-radius: 10px; padding: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); z-index: 1000; }
+        .sidebar-header h3 { margin: 0 0 10px 0; color: #333; border-bottom: 1px solid #ccc; padding-bottom: 10px; }
+        .parameter-list { list-style: none; padding: 0; margin: 0; }
+        .param-btn { width: 100%; padding: 12px 15px; margin-bottom: 5px; background-color: transparent; border: none; border-radius: 6px; text-align: left; font-size: 16px; color: #444; cursor: pointer; transition: background-color 0.2s ease, color 0.2s ease; display: flex; align-items: center; }
+        .param-btn i { margin-right: 15px; width: 20px; text-align: center; }
+        .param-btn:hover { background-color: rgba(0, 0, 0, 0.05); }
+        .param-btn.active { background-color: #007BFF; color: white; font-weight: 500; }
+
+        /* --- CSS BARU UNTUK TIME CONTROL --- */
+        .time-control { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); width: 40%; max-width: 600px; background-color: rgba(255, 255, 255, 0.85); backdrop-filter: blur(10px); border-radius: 10px; padding: 15px 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); display: flex; align-items: center; gap: 20px; z-index: 1000; }
+        .time-buttons button { background: none; border: 1px solid #ccc; border-radius: 5px; width: 40px; height: 40px; font-size: 16px; cursor: pointer; transition: background-color 0.2s; }
+        .time-buttons button:hover { background-color: #e0e0e0; }
+        .slider-container { width: 100%; text-align: center; }
+        #time-display { font-weight: 500; color: #333; margin-bottom: 10px; display: block; }
+        .time-slider { -webkit-appearance: none; width: 100%; height: 8px; background: #d3d3d3; outline: none; opacity: 0.7; transition: opacity .2s; border-radius: 5px; }
+        .time-slider:hover { opacity: 1; }
+        .time-slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 20px; height: 20px; background: dodgerblue; cursor: pointer; border-radius: 50%; }
+        .time-slider::-moz-range-thumb { width: 20px; height: 20px; background: dodgerblue; cursor: pointer; border-radius: 50%; }
+
+        /* GANTI CSS LAMA ANDA DENGAN INI */
+        .month-labels {
+            display: flex;
+            justify-content: space-between;
+            padding: 0 10px; /* Atur padding agar sejajar dengan slider */
+            font-size: 12px;
+            color: #555;
+            margin-top: 5px;
+        }
+        .month-labels span {
+            width: 3ch; /* Beri lebar tetap (lebar 3 karakter) */
+            text-align: center;
+        }
+
+        /* CSS BARU UNTUK PENANDA/GARIS KECIL */
+        .tick-marks {
+            display: flex;
+            justify-content: space-between;
+            padding: 0 10px; /* Samakan dengan padding label */
+            height: 5px; /* Tinggi area penanda */
+            margin-top: -2px; /* Posisikan sedikit ke atas */
+            margin-bottom: 2px;
+        }
+
+        .tick-marks .tick {
+            width: 1px; /* Lebar garis */
+            height: 5px; /* Tinggi garis */
+            background-color: #ccc; /* Warna garis */
+        }
+
+        /* --- CSS UNTUK PANEL INFORMASI DI KANAN --- */
+        .info-panel {
+            position: absolute;
+            top: 150px;
+            right: 20px;
+            width: 300px;
+            background-color: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(10px);
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            z-index: 1000;
+            color: #333;
+            transition: opacity 0.3s ease;
+        }
+
+        .info-panel.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .info-panel h3 {
+            margin-top: 0;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #ccc;
+        }
+
+        .info-panel p {
+            font-size: 15px;
+            line-height: 1.6;
+            margin-bottom: 0;
+            text-align: justify; /* Ini untuk membuat rata kanan-kiri */
+        }
+
+        .close-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 25px;
+            height: 25px;
+            border: none;
+            background: rgba(0,0,0,0.1);
+            border-radius: 50%;
+            font-size: 20px;
+            cursor: pointer;
+        }
+
+        .leaflet-top.leaflet-left .leaflet-control-layers {
+            margin-top: 10px;
+            margin-left: 1360px; /* Sesuaikan angka ini untuk mengatur jarak dari sidebar */
+        }
+
+        /* Add this new CSS inside the <style> tag in demo.html */
+
+        .display-panel {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            /* ▼▼▼ UBAH BAGIAN INI ▼▼▼ */
+            background: linear-gradient(135deg, rgba(255, 255, 200, 0.7), rgba(150, 200, 255, 0.7)); /* Gradien kuning muda ke biru muda, transparan */
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            padding: 10px 25px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1); /* Sesuaikan shadow agar tidak terlalu gelap */
+            z-index: 1000;
+            color: #333; /* Ubah warna teks menjadi gelap agar kontras */
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.3); /* Border lebih terang dan transparan */
+            /* ▲▲▲ AKHIR PERUBAHAN ▲▲▲ */
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }
+
+/* Sesuaikan juga warna teks di dalamnya agar terlihat lebih baik */
+        .display-panel h2 {
+            margin: 0;
+            font-size: 20px;
+            font-weight: 600; /* Sedikit lebih tebal */
+            letter-spacing: 0.5px;
+            color: #222; /* Warna teks judul lebih gelap */
+        }
+
+        .display-panel p {
+            margin: 5px 0 0 0;
+            font-size: 14px;
+            opacity: 0.9; /* Tingkatkan opacity teks */
+            color: #444; /* Warna teks paragraf */
+        }
+
+        #grafik-container {
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 1px solid #ccc;
+            
+            /* Baris ini akan menyembunyikannya secara default */
+            display: none; 
+            
+            /* Properti flexbox akan kita kontrol via JavaScript */
+            flex-direction: column;
+            height: 240px; 
+        }
+/* --- CSS BARU UNTUK PEMBUNGKUS KANVAS --- */
+        .grafik-canvas-wrapper {
+            flex-grow: 1; /* Ini bagian penting: ambil semua sisa ruang vertikal */
+            position: relative; /* Diperlukan agar Chart.js responsif */
+        }
+
+        #grafik-container .grafik-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 10px;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #ddd;
+        }
+        #grafik-container .grafik-title {
+            font-size: 14px;
+            font-weight: 500;
+            color: #333;
+        }
+        #grafik-container .grafik-close-btn {
+            width: 24px;
+            height: 24px;
+            border: none;
+            background-color: #f0f0f0;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 16px;
+            line-height: 24px;
+            text-align: center;
+            transition: background-color 0.2s;
+        }
+        #grafik-container .grafik-close-btn:hover {
+            background-color: #e0e0e0;
+        }
+
+        /* Tambahkan di dalam <style> di demo.html */
+
+        /* --- CSS BARU UNTUK POP-UP KUSTOM --- */
+        .custom-popup .leaflet-popup-content-wrapper {
+            background-color: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            padding: 0;
+        }
+        .custom-popup .leaflet-popup-content {
+            margin: 0;
+            width: 220px !important;
+        }
+        .custom-popup .leaflet-popup-tip {
+            background: rgba(255, 255, 255, 0.85);
+        }
+        .popup-header {
+            background-color: #007BFF;
+            color: white;
+            padding: 10px 15px;
+            border-top-left-radius: 12px;
+            border-top-right-radius: 12px;
+            font-weight: 500;
+        }
+        .popup-body {
+            padding: 15px;
+        }
+        .popup-info-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+        .popup-info-row:last-child {
+            margin-bottom: 0;
+        }
+        .popup-info-row i {
+            color: #007BFF;
+            width: 25px;
+            text-align: center;
+            margin-right: 10px;
+        }
+        .popup-info-row span {
+            color: #333;
+        }
+    </style>
+</head>
+
+<body>
+    
+    <div id="mapid"></div>
+
+    <div class="display-panel hidden" id="displayPanel">
+        <h2 id="displayTitle"></h2>
+        <p id="displayTime"></p>
+    </div>
+
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <h3>Parameters</h3>
+        </div>
+        <ul class="parameter-list">
+            <li id="arus-li">
+                <button class="param-btn active" data-param="arus">
+                    <i class="fas fa-arrows-left-right-to-line"></i> Arus Laut
+                </button>
+            </li>
+            <li id="suhu-li">
+                <button class="param-btn" data-param="suhu">
+                    <i class="fas fa-temperature-three-quarters"></i> Suhu Permukaan Laut
+                </button>
+            </li>
+        </ul>
+       <div id="grafik-container">
+            <p class="placeholder">Klik pada area peta untuk melihat grafik data tahunan di sini.</p>
+        </div>
+        </div>
+    </div>
+
+    <div class="time-control">
+        <div class="time-buttons">
+            <button id="play-pause-btn" title="Play/Pause Animation">
+                <i class="fas fa-play"></i>
+            </button>
+        </div>
+        <div class="slider-container">
+            <span id="time-display">Bulan: Januari</span>
+            <input type="range" min="0" max="11" value="0" class="time-slider" id="timeSlider">
+            <div class="tick-marks" id="tickMarks"></div>
+            <div class="month-labels" id="monthLabels"></div>
+        </div>
+    </div>
+
+    <div class="info-panel hidden" id="infoPanel">
+        <button class="close-btn" id="closeInfoBtn">&times;</button>
+        <h3 id="infoTitle"></h3>
+        <p id="infoDescription"></p>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/leaflet-velocity@1.1.0/dist/leaflet-velocity.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chroma-js@2.4.2/chroma.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="demo.js"></script>
+
+</body>
+</html>
