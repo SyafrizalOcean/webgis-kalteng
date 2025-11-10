@@ -1,0 +1,162 @@
+/* Global Styles */
+body { 
+    margin: 0; 
+    padding: 0; 
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+    display: flex;
+    flex-direction: column;
+    height: 100vh; /* Membuat halaman setinggi layar penuh */
+    overflow: hidden; /* Mencegah scroll yang tidak perlu */
+}
+
+/* Layout Utama */
+.main-container {
+    display: flex;
+    flex-grow: 1; /* Mengisi sisa ruang vertikal di bawah header */
+}
+
+/* Header */
+.header {
+    background-color: #00569f; /* Warna biru seperti BMKG */
+    color: white;
+    padding: 10px 20px;
+    font-size: 1.2em;
+    font-weight: bold;
+    text-align: center;
+}
+
+/* Sidebar Kiri */
+.sidebar {
+    width: 280px;
+    background-color: #f8f9fa;
+    padding: 15px;
+    overflow-y: auto; /* Bisa di-scroll jika isinya panjang */
+    border-right: 1px solid #dee2e6;
+    box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+}
+
+.sidebar h3 {
+    margin-top: 0;
+    color: #343a40;
+    border-bottom: 2px solid #007bff;
+    padding-bottom: 10px;
+}
+
+.sidebar ul {
+    list-style-type: none;
+    padding: 0;
+    margin: 0;
+}
+
+.sidebar li {
+    padding: 12px 15px;
+    cursor: pointer;
+    border-radius: 4px;
+    margin-bottom: 5px;
+    transition: background-color 0.2s;
+}
+
+.sidebar li:hover {
+    background-color: #e9ecef;
+}
+
+.sidebar li.active {
+    background-color: #007bff;
+    color: white;
+    font-weight: bold;
+}
+
+/* Peta */
+#mapid {
+    flex-grow: 1; /* Membuat peta mengisi sisa ruang horizontal */
+}
+
+/* Legenda */
+.legend {
+    padding: 8px 10px;
+    font: 14px/16px Arial, Helvetica, sans-serif;
+    background: rgba(255, 255, 255, 0.85); /* Sedikit lebih solid */
+    box-shadow: 0 0 15px rgba(0,0,0,0.2);
+    border-radius: 5px;
+    line-height: 20px;
+    color: #495057;
+}
+
+.legend h4 {
+    margin: 0 0 5px;
+    font-size: 1.1em;
+    font-weight: bold;
+}
+
+.legend i {
+    width: 20px;
+    height: 20px;
+    float: left;
+    margin-right: 8px;
+    border: 1px solid #ccc; /* Tambah border tipis */
+}
+
+
+/* --- CSS BARU UNTUK PANEL INFORMASI --- */
+.info-panel {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    width: 300px;
+    background-color: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(10px);
+    border-radius: 10px;
+    padding: 20px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    z-index: 1000;
+    color: #333;
+    
+    /* Properti untuk animasi */
+    opacity: 1;
+    transform: scale(1);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.info-panel.hidden {
+    opacity: 0;
+    transform: scale(0.95);
+    pointer-events: none; /* Agar tidak bisa diklik saat tersembunyi */
+}
+
+.info-panel h3 {
+    margin: 0 0 10px 0;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #ccc;
+}
+
+.info-panel p {
+    font-size: 15px;
+    line-height: 1.6;
+    margin: 0;
+    text-align: justify;
+}
+
+.close-btn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 25px;
+    height: 25px;
+    border: none;
+    background: rgba(0,0,0,0.1);
+    border-radius: 50%;
+    color: #555;
+    font-size: 20px;
+    line-height: 25px;
+    text-align: center;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.close-btn:hover {
+    background: rgba(0,0,0,0.2);
+    color: #000;
+}
+    
+
+
