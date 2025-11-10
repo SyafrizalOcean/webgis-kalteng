@@ -1,0 +1,8 @@
+services:
+  geoportal-web:
+    build:
+      context: .
+    image: geoportal-laut:latest
+    ports:
+      - "${APP_PORT:-8080}:80"
+    restart: unless-stopped
