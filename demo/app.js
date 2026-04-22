@@ -203,7 +203,7 @@ if(depthContainer) {
 
 async function loadRealDepths() {
     try {
-        const res = await fetch('https://api-webgis-kalteng.onrender.com/depths');
+        const res = await fetch('https://api-webgis-kalteng.onrender.com/api/depths');
         const data = await res.json();
         
         // KUNCI UTAMA: Potong (Filter) data API yang turun dari Python agar tidak lewat 92.33m
@@ -367,7 +367,7 @@ async function renderActiveLayer(dayIndex) {
 
     try {
         // --- 1. MENENTUKAN URL DATA ---
-        let url = `https://api-webgis-kalteng.onrender.com/${activeDataType}`;
+        let url = `https://api-webgis-kalteng.onrender.com/api/${activeDataType}`;
         
         // Data MetOcean pakai jam, Batimetri tidak pakai
         if (activeDataType !== 'batimetri') {
@@ -743,7 +743,7 @@ window.buildUnifiedSidebar = async function(lat, lon, zonasiProps = null) {
                 <div class="mt-3">
                     <div class="flex justify-between items-center">
                         <label class="text-[9px] font-bold text-gray-500 uppercase">Prakiraan 10 Hari (Time Series)</label>
-                        <a href="https://api-webgis-kalteng.onrender.com/export-csv?lat=${lat}&lon=${lon}&param=${moData.type}&mode=timeseries" target="_blank" class="text-[9px] bg-green-600 text-white px-2 py-0.5 rounded hover:bg-green-700 transition cursor-pointer flex items-center gap-1 shadow-sm">📥 CSV</a>
+                        <a href="https://api-webgis-kalteng.onrender.com/api/export-csv?lat=${lat}&lon=${lon}&param=${moData.type}&mode=timeseries" target="_blank" class="text-[9px] bg-green-600 text-white px-2 py-0.5 rounded hover:bg-green-700 transition cursor-pointer flex items-center gap-1 shadow-sm">📥 CSV</a>
                     </div>
                     <div class="relative h-28 w-full mt-1 bg-white border border-gray-100 rounded shadow-inner"><canvas id="chartTimeSeries"></canvas></div>
                 </div>
@@ -755,7 +755,7 @@ window.buildUnifiedSidebar = async function(lat, lon, zonasiProps = null) {
                     <div class="mt-3 border-t border-gray-100 pt-3">
                         <div class="flex justify-between items-center">
                             <label class="text-[9px] font-bold text-gray-500 uppercase">Profil Kedalaman (Data Asli API)</label>
-                            <a href="https://api-webgis-kalteng.onrender.com/export-csv?lat=${lat}&lon=${lon}&param=${moData.type}&mode=depth" target="_blank" class="text-[9px] bg-green-600 text-white px-2 py-0.5 rounded hover:bg-green-700 transition cursor-pointer flex items-center gap-1 shadow-sm">📥 CSV</a>
+                            <a href="https://api-webgis-kalteng.onrender.com/api/export-csv?lat=${lat}&lon=${lon}&param=${moData.type}&mode=depth" target="_blank" class="text-[9px] bg-green-600 text-white px-2 py-0.5 rounded hover:bg-green-700 transition cursor-pointer flex items-center gap-1 shadow-sm">📥 CSV</a>
                         </div>
                         <div class="relative h-48 w-full mt-1 bg-white border border-gray-100 rounded shadow-inner flex items-center justify-center">
                             <span id="loading-depth" class="text-xs text-blue-600 font-bold animate-pulse">Menghubungkan API...</span>
@@ -816,7 +816,7 @@ window.buildUnifiedSidebar = async function(lat, lon, zonasiProps = null) {
         // --- D. FETCH API & GAMBAR GRAFIK KEDALAMAN (HANYA UNTUK DATA 3D) ---
         if (['suhu', 'salinitas', 'arus'].includes(moData.type)) {
             try {
-                const response = await fetch(`https://api-webgis-kalteng.onrender.com/profile?lat=${lat}&lon=${lon}&param=${moData.type}`);
+                const response = await fetch(`https://api-webgis-kalteng.onrender.com/api/profile?lat=${lat}&lon=${lon}&param=${moData.type}`);
                 const realData = await response.json();
 
                 document.getElementById('loading-depth').classList.add('hidden');
@@ -1031,7 +1031,7 @@ async function renderThermalFront(dayIndex) {
     if (thermalFrontLayer) { map.removeLayer(thermalFrontLayer); thermalFrontLayer = null; }
     
     try {
-        const res = await fetch(`https://api-webgis-kalteng.onrender.com/thermal-front/${dayIndex}`);
+        const res = await fetch(`https://api-webgis-kalteng.onrender.com/api/thermal-front/${dayIndex}`);
         const data = await res.json();
         
         if (data.error) return;
@@ -2066,7 +2066,7 @@ async function buildTideSidebar(stationName, lat, lon, stationCode) {
 
     try {
         // KITA KIRIM 'stationCode' BUKAN LAT/LON LAGI!
-        const res = await fetch(`https://api-webgis-kalteng.onrender.com/tide?station_code=${stationCode}`);
+        const res = await fetch(`https://api-webgis-kalteng.onrender.com/api/tide?station_code=${stationCode}`);
         const data = await res.json();
 
         // TAMBAHKAN BLOK PENGAMAN INI
@@ -2085,7 +2085,7 @@ async function buildTideSidebar(stationName, lat, lon, stationCode) {
                     <label class="text-[10px] font-bold text-blue-900 uppercase">Stasiun Observasi</label>
                     <p class="text-sm font-extrabold text-blue-700 bg-blue-50 inline-block px-2 py-1 rounded mt-1">${stationName}</p>
                 </div>
-                <a href="https://api-webgis-kalteng.onrender.com/tide?lat=${lat}&lon=${lon}" target="_blank" download="Tide_${stationName.replace(/\s+/g, '_')}.json" class="text-[9px] bg-green-600 text-white px-2 py-1 rounded hover:bg-green-700 transition cursor-pointer shadow-sm">📥 JSON</a>
+                <a href="https://api-webgis-kalteng.onrender.com/api/tide?lat=${lat}&lon=${lon}" target="_blank" download="Tide_${stationName.replace(/\s+/g, '_')}.json" class="text-[9px] bg-green-600 text-white px-2 py-1 rounded hover:bg-green-700 transition cursor-pointer shadow-sm">📥 JSON</a>
             </div>
             
             <div class="flex justify-between text-center bg-gray-50 border border-gray-200 rounded p-2 mb-3 shadow-inner">
