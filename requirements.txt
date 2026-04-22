@@ -6,3 +6,7 @@ netCDF4
 pandas
 numpy
 rioxarray
+scipy
+scikit-image
+apscheduler
+ecmwf-opendata
