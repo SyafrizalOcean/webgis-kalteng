@@ -1,335 +1,246 @@
 <!DOCTYPE html>
-<html>
+<html lang="id">
 <head>
-    <title>Peta Arus Laut & Suhu</title>
-    <meta charset="utf-8" />
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebGIS Kelautan Kalimantan Tengah</title>
     
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet-velocity@1.1.0/dist/leaflet-velocity.min.css" /> 
-    
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet-velocity@1.6.0/dist/leaflet-velocity.min.css" />
+    <script src="https://cdn.jsdelivr.net/npm/leaflet-velocity@1.6.0/dist/leaflet-velocity.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chroma-js/2.4.2/chroma.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/shpjs@latest/dist/shp.js"></script>
+    <script src="https://unpkg.com/@mapbox/shp-write@latest/shpwrite.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
     <style>
-        /* Import Font */
-        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap');
-
-        body {
-            font-family: 'Roboto', sans-serif;
-            margin: 0;
-            overflow: hidden;
-        }
-
-        #mapid {
-            position: absolute;
-            top: 0;
-            bottom: 0;
-            width: 100%;
-        }
-
-        /* --- CSS Legenda Anda (Sudah Baik) --- */
-        .legend { padding: 6px 8px; font: 14px/16px Arial, Helvetica, sans-serif; background: rgba(255,255,255,0.8); box-shadow: 0 0 15px rgba(0,0,0,0.2); border-radius: 5px; line-height: 18px; color: #555; z-index: 1000; }
-        .legend i { width: 18px; height: 18px; float: left; margin-right: 8px; opacity: 0.7; }
-
-        /* --- CSS Zoom Control Anda (Sudah Baik) --- */
-        .leaflet-touch .leaflet-control-zoom, .leaflet-control-zoom { border: none !important; background-color: transparent !important; box-shadow: none !important; }
-        .leaflet-control-zoom a.leaflet-control-zoom-in, .leaflet-control-zoom a.leaflet-control-zoom-out { width: 34px !important; height: 34px !important; line-height: 34px !important; font-size: 24px; font-weight: bold; border-radius: 50% !important; background-color: white !important; color: #333 !important; border: 1px solid #ccc !important; box-shadow: 0 2px 5px rgba(0,0,0,0.2); transition: background-color 0.2s; }
-        .leaflet-control-zoom a.leaflet-control-zoom-in { margin-bottom: 10px !important; }
-        .leaflet-control-zoom-in:focus, .leaflet-control-zoom-out:focus { outline: none; }
-        .leaflet-control-zoom a.leaflet-control-zoom-in:hover, .leaflet-control-zoom a.leaflet-control-zoom-out:hover { background-color: #f4f4f4 !important; }
-
-        /* --- CSS BARU UNTUK SIDEBAR --- */
-        .sidebar { position: absolute; top: 20px; left: 20px; width: 300px; background-color: rgba(255, 255, 255, 0.8); backdrop-filter: blur(10px); border-radius: 10px; padding: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); z-index: 1000; }
-        .sidebar-header h3 { margin: 0 0 10px 0; color: #333; border-bottom: 1px solid #ccc; padding-bottom: 10px; }
-        .parameter-list { list-style: none; padding: 0; margin: 0; }
-        .param-btn { width: 100%; padding: 12px 15px; margin-bottom: 5px; background-color: transparent; border: none; border-radius: 6px; text-align: left; font-size: 16px; color: #444; cursor: pointer; transition: background-color 0.2s ease, color 0.2s ease; display: flex; align-items: center; }
-        .param-btn i { margin-right: 15px; width: 20px; text-align: center; }
-        .param-btn:hover { background-color: rgba(0, 0, 0, 0.05); }
-        .param-btn.active { background-color: #007BFF; color: white; font-weight: 500; }
-
-        /* --- CSS BARU UNTUK TIME CONTROL --- */
-        .time-control { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); width: 40%; max-width: 600px; background-color: rgba(255, 255, 255, 0.85); backdrop-filter: blur(10px); border-radius: 10px; padding: 15px 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); display: flex; align-items: center; gap: 20px; z-index: 1000; }
-        .time-buttons button { background: none; border: 1px solid #ccc; border-radius: 5px; width: 40px; height: 40px; font-size: 16px; cursor: pointer; transition: background-color 0.2s; }
-        .time-buttons button:hover { background-color: #e0e0e0; }
-        .slider-container { width: 100%; text-align: center; }
-        #time-display { font-weight: 500; color: #333; margin-bottom: 10px; display: block; }
-        .time-slider { -webkit-appearance: none; width: 100%; height: 8px; background: #d3d3d3; outline: none; opacity: 0.7; transition: opacity .2s; border-radius: 5px; }
-        .time-slider:hover { opacity: 1; }
-        .time-slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 20px; height: 20px; background: dodgerblue; cursor: pointer; border-radius: 50%; }
-        .time-slider::-moz-range-thumb { width: 20px; height: 20px; background: dodgerblue; cursor: pointer; border-radius: 50%; }
-
-        /* GANTI CSS LAMA ANDA DENGAN INI */
-        .month-labels {
-            display: flex;
-            justify-content: space-between;
-            padding: 0 10px; /* Atur padding agar sejajar dengan slider */
-            font-size: 12px;
-            color: #555;
-            margin-top: 5px;
-        }
-        .month-labels span {
-            width: 3ch; /* Beri lebar tetap (lebar 3 karakter) */
-            text-align: center;
-        }
-
-        /* CSS BARU UNTUK PENANDA/GARIS KECIL */
-        .tick-marks {
-            display: flex;
-            justify-content: space-between;
-            padding: 0 10px; /* Samakan dengan padding label */
-            height: 5px; /* Tinggi area penanda */
-            margin-top: -2px; /* Posisikan sedikit ke atas */
-            margin-bottom: 2px;
-        }
-
-        .tick-marks .tick {
-            width: 1px; /* Lebar garis */
-            height: 5px; /* Tinggi garis */
-            background-color: #ccc; /* Warna garis */
-        }
-
-        /* --- CSS UNTUK PANEL INFORMASI DI KANAN --- */
-        .info-panel {
-            position: absolute;
-            top: 150px;
-            right: 20px;
-            width: 300px;
-            background-color: rgba(255, 255, 255, 0.8);
-            backdrop-filter: blur(10px);
-            border-radius: 10px;
-            padding: 20px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-            z-index: 1000;
-            color: #333;
-            transition: opacity 0.3s ease;
-        }
-
-        .info-panel.hidden {
-            opacity: 0;
-            pointer-events: none;
-        }
-
-        .info-panel h3 {
-            margin-top: 0;
-            padding-bottom: 10px;
-            border-bottom: 1px solid #ccc;
-        }
-
-        .info-panel p {
-            font-size: 15px;
-            line-height: 1.6;
-            margin-bottom: 0;
-            text-align: justify; /* Ini untuk membuat rata kanan-kiri */
-        }
-
-        .close-btn {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            width: 25px;
-            height: 25px;
-            border: none;
-            background: rgba(0,0,0,0.1);
-            border-radius: 50%;
-            font-size: 20px;
-            cursor: pointer;
-        }
-
-        .leaflet-top.leaflet-left .leaflet-control-layers {
-            margin-top: 10px;
-            margin-left: 1360px; /* Sesuaikan angka ini untuk mengatur jarak dari sidebar */
-        }
-
-        /* Add this new CSS inside the <style> tag in demo.html */
-
-        .display-panel {
-            position: absolute;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            /* ▼▼▼ UBAH BAGIAN INI ▼▼▼ */
-            background: linear-gradient(135deg, rgba(255, 255, 200, 0.7), rgba(150, 200, 255, 0.7)); /* Gradien kuning muda ke biru muda, transparan */
-            backdrop-filter: blur(10px);
-            border-radius: 16px;
-            padding: 10px 25px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.1); /* Sesuaikan shadow agar tidak terlalu gelap */
-            z-index: 1000;
-            color: #333; /* Ubah warna teks menjadi gelap agar kontras */
-            text-align: center;
-            border: 1px solid rgba(255, 255, 255, 0.3); /* Border lebih terang dan transparan */
-            /* ▲▲▲ AKHIR PERUBAHAN ▲▲▲ */
-            transition: opacity 0.3s ease, transform 0.3s ease;
-        }
-
-/* Sesuaikan juga warna teks di dalamnya agar terlihat lebih baik */
-        .display-panel h2 {
-            margin: 0;
-            font-size: 20px;
-            font-weight: 600; /* Sedikit lebih tebal */
-            letter-spacing: 0.5px;
-            color: #222; /* Warna teks judul lebih gelap */
-        }
-
-        .display-panel p {
-            margin: 5px 0 0 0;
-            font-size: 14px;
-            opacity: 0.9; /* Tingkatkan opacity teks */
-            color: #444; /* Warna teks paragraf */
-        }
-
-        #grafik-container {
-            margin-top: 20px;
-            padding-top: 15px;
-            border-top: 1px solid #ccc;
-            
-            /* Baris ini akan menyembunyikannya secara default */
-            display: none; 
-            
-            /* Properti flexbox akan kita kontrol via JavaScript */
-            flex-direction: column;
-            height: 240px; 
-        }
-/* --- CSS BARU UNTUK PEMBUNGKUS KANVAS --- */
-        .grafik-canvas-wrapper {
-            flex-grow: 1; /* Ini bagian penting: ambil semua sisa ruang vertikal */
-            position: relative; /* Diperlukan agar Chart.js responsif */
-        }
-
-        #grafik-container .grafik-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding-bottom: 10px;
-            margin-bottom: 10px;
-            border-bottom: 1px solid #ddd;
-        }
-        #grafik-container .grafik-title {
-            font-size: 14px;
-            font-weight: 500;
-            color: #333;
-        }
-        #grafik-container .grafik-close-btn {
-            width: 24px;
-            height: 24px;
-            border: none;
-            background-color: #f0f0f0;
-            border-radius: 50%;
-            cursor: pointer;
-            font-size: 16px;
-            line-height: 24px;
-            text-align: center;
-            transition: background-color 0.2s;
-        }
-        #grafik-container .grafik-close-btn:hover {
-            background-color: #e0e0e0;
-        }
-
-        /* Tambahkan di dalam <style> di demo.html */
-
-        /* --- CSS BARU UNTUK POP-UP KUSTOM --- */
-        .custom-popup .leaflet-popup-content-wrapper {
-            background-color: rgba(255, 255, 255, 0.85);
-            backdrop-filter: blur(10px);
-            border-radius: 12px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-            padding: 0;
-        }
-        .custom-popup .leaflet-popup-content {
-            margin: 0;
-            width: 220px !important;
-        }
-        .custom-popup .leaflet-popup-tip {
-            background: rgba(255, 255, 255, 0.85);
-        }
-        .popup-header {
-            background-color: #007BFF;
-            color: white;
-            padding: 10px 15px;
-            border-top-left-radius: 12px;
-            border-top-right-radius: 12px;
-            font-weight: 500;
-        }
-        .popup-body {
-            padding: 15px;
-        }
-        .popup-info-row {
-            display: flex;
-            align-items: center;
-            margin-bottom: 10px;
-            font-size: 14px;
-        }
-        .popup-info-row:last-child {
-            margin-bottom: 0;
-        }
-        .popup-info-row i {
-            color: #007BFF;
-            width: 25px;
-            text-align: center;
-            margin-right: 10px;
-        }
-        .popup-info-row span {
-            color: #333;
-        }
+        .parameter-list::-webkit-scrollbar { width: 6px; }
+        .parameter-list::-webkit-scrollbar-track { background: #f1f1f1; }
+        .parameter-list::-webkit-scrollbar-thumb { background: #888; border-radius: 3px; }
+        .parameter-list::-webkit-scrollbar-thumb:hover { background: #555; }
     </style>
 </head>
+<body class="relative w-screen h-screen overflow-hidden bg-gray-200 font-sans text-sm">
 
-<body>
-    
-    <div id="mapid"></div>
+    <div id="map" class="absolute inset-0 z-0"></div>
 
-    <div class="display-panel hidden" id="displayPanel">
-        <h2 id="displayTitle"></h2>
-        <p id="displayTime"></p>
-    </div>
+    <div id="top-bar-container" class="absolute top-0 left-0 right-0 z-20 flex items-start pointer-events-none">
+        <button id="toggle-top-bar" class="pointer-events-auto bg-white text-blue-900 p-2 shadow-md hover:bg-gray-100 focus:outline-none border-b border-r border-gray-200">
+            <svg class="w-6 h-6 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 15l7-7 7 7"></path></svg>
+        </button>
 
-    <div class="sidebar">
-        <div class="sidebar-header">
-            <h3>Parameters</h3>
-        </div>
-        <ul class="parameter-list">
-            <li id="arus-li">
-                <button class="param-btn active" data-param="arus">
-                    <i class="fas fa-arrows-left-right-to-line"></i> Arus Laut
-                </button>
-            </li>
-            <li id="suhu-li">
-                <button class="param-btn" data-param="suhu">
-                    <i class="fas fa-temperature-three-quarters"></i> Suhu Permukaan Laut
-                </button>
-            </li>
-        </ul>
-       <div id="grafik-container">
-            <p class="placeholder">Klik pada area peta untuk melihat grafik data tahunan di sini.</p>
-        </div>
-        </div>
-    </div>
+        <div id="top-bar-content" class="pointer-events-auto flex-1 flex items-center justify-between bg-blue-800 text-white p-2 shadow-md transition-transform duration-300">
+            
+            <div class="flex items-center space-x-3 ml-2">
+                
+                <div class="relative">
+                    <div class="flex bg-white rounded overflow-hidden text-gray-800 shadow-inner">
+                        <span class="px-2 py-1.5 bg-gray-100 border-r">🔍</span>
+                        <input id="input-search" type="text" placeholder="Cari Lokasi..." class="px-3 py-1.5 outline-none w-40 md:w-64 text-sm" autocomplete="off">
+                    </div>
+                    <div id="search-suggestions" class="absolute top-full left-0 w-full bg-white shadow-xl border border-gray-200 rounded-b-lg hidden z-[9999]"></div>
+                </div>
 
-    <div class="time-control">
-        <div class="time-buttons">
-            <button id="play-pause-btn" title="Play/Pause Animation">
-                <i class="fas fa-play"></i>
+                <div class="relative">
+                    <button id="btn-basemap" class="bg-blue-700 hover:bg-blue-600 px-3 py-1.5 rounded text-sm shadow border border-blue-700 transition">🗺️ Basemap</button>
+                    <div id="basemap-dropdown" class="absolute top-full left-0 mt-2 w-48 bg-white rounded shadow-xl border border-gray-200 hidden z-50 overflow-hidden">
+                        <button class="basemap-option block w-full text-left px-4 py-2 text-gray-700 hover:bg-blue-50 hover:text-blue-700 text-xs font-medium border-b" data-map="satellite">🛰️ Citra Satelit</button>
+                        <button class="basemap-option block w-full text-left px-4 py-2 text-gray-700 hover:bg-blue-50 hover:text-blue-700 text-xs font-medium border-b" data-map="osm">🗺️ OpenStreetMap</button>
+                        <button class="basemap-option block w-full text-left px-4 py-2 text-gray-700 hover:bg-blue-50 hover:text-blue-700 text-xs font-medium border-b" data-map="dark">🌙 Gelap (Carto Dark)</button>
+                        <button class="basemap-option block w-full text-left px-4 py-2 text-gray-700 hover:bg-blue-50 hover:text-blue-700 text-xs font-medium" data-map="light">☀️ Terang (Carto Light)</button>
+                    </div>
+                </div>
+
+                <div class="relative flex items-center">
+                    <button id="btn-upload-shp" class="bg-blue-700 hover:bg-blue-600 px-3 py-1.5 rounded text-sm shadow border border-blue-700 transition">📁 Upload SHP</button>
+                    <input type="file" id="input-shp-file" accept=".zip" class="hidden">
+                </div>
+                
+            </div> <div id="displayPanel" class="hidden absolute left-1/2 transform -translate-x-1/2 bg-white/20 px-3 py-1 rounded-full backdrop-blur-sm border border-white/30 text-center">
+                <span id="displayTitle" class="font-semibold text-white">Pilih Peta</span>
+                <span class="mx-1 text-white/50">|</span>
+                <span id="displayTime" class="text-blue-100">-</span>
+            </div>
+
+            <button id="btn-layer-menu" class="bg-white text-blue-900 p-1 rounded shadow hover:bg-gray-100" title="Pilih Layer Peta">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
             </button>
-        </div>
-        <div class="slider-container">
-            <span id="time-display">Bulan: Januari</span>
-            <input type="range" min="0" max="11" value="0" class="time-slider" id="timeSlider">
-            <div class="tick-marks" id="tickMarks"></div>
-            <div class="month-labels" id="monthLabels"></div>
+            
         </div>
     </div>
 
-    <div class="info-panel hidden" id="infoPanel">
-        <button class="close-btn" id="closeInfoBtn">&times;</button>
-        <h3 id="infoTitle"></h3>
-        <p id="infoDescription"></p>
+    <div id="layer-menu" class="absolute top-16 right-2 md:right-4 z-30 w-[95%] md:w-80 bg-white rounded-lg shadow-2xl p-4 border border-gray-100 transition-opacity duration-300 hidden">
+        <div class="flex justify-between items-center mb-3">
+            <h3 class="font-bold text-gray-800 uppercase tracking-wider text-xs">Pilih Parameter Peta</h3>
+            <button id="btn-close-menu" class="text-gray-400 hover:text-red-500 text-lg">✖</button>
+        </div>
+
+        <div class="flex space-x-1 bg-gray-100 p-1 rounded-full mb-3 border border-gray-200">
+            <button id="tab-zonasi" class="flex-1 px-4 py-1.5 rounded-full text-xs font-semibold bg-blue-900 text-white shadow-md">Zonasi Pesisir</button>
+            <button id="tab-metocean" class="flex-1 px-4 py-1.5 rounded-full text-xs font-semibold text-gray-600 hover:bg-gray-200">MetOcean</button>
+        </div>
+
+    <div id="parameter-list-zonasi" class="parameter-list flex flex-col space-y-2 overflow-y-auto max-h-56 pr-2">
+            <div class="zonasi-item flex items-center justify-between px-3 py-2 bg-gray-100 rounded border border-gray-200 hover:bg-gray-200 transition cursor-pointer" data-file="collected/zonasi.geojson" data-name="Zonasi KKP">
+                <span class="text-xs font-medium">Zonasi KKP</span><span>🗺️</span>
+            </div>
+            <div class="zonasi-item flex items-center justify-between px-3 py-2 bg-gray-100 rounded border border-gray-200 hover:bg-gray-200 transition cursor-pointer" data-file="collected/zonakkpfeb2019.geojson" data-name="Zona KKP Feb 2019">
+                <span class="text-xs font-medium">Zona KKP Feb 2019</span><span>📍</span>
+            </div>
+            <div class="zonasi-item flex items-center justify-between px-3 py-2 bg-gray-100 rounded border border-gray-200 hover:bg-gray-200 transition cursor-pointer" data-file="collected/transportasi.geojson" data-name="Transportasi & Pelabuhan">
+                <span class="text-xs font-medium">Transportasi & Pelabuhan</span><span>⚓</span>
+            </div>
+            <div class="zonasi-item flex items-center justify-between px-3 py-2 bg-gray-100 rounded border border-gray-200 hover:bg-gray-200 transition cursor-pointer" data-file="collected/alurpelayaran.geojson" data-name="Alur Pelayaran">
+                <span class="text-xs font-medium">Alur Pelayaran</span><span>🚢</span>
+            </div>
+            <div class="zonasi-item flex items-center justify-between px-3 py-2 bg-gray-100 rounded border border-gray-200 hover:bg-gray-200 transition cursor-pointer" data-file="collected/kabelbawahlaut.geojson" data-name="Kabel Bawah Laut">
+                <span class="text-xs font-medium">Kabel Bawah Laut</span><span>⚡</span>
+            </div>
+            <div class="zonasi-item flex items-center justify-between px-3 py-2 bg-gray-100 rounded border border-gray-200 hover:bg-gray-200 transition cursor-pointer" data-file="collected/migas.geojson" data-name="Migas (Minyak & Gas)">
+                <span class="text-xs font-medium">Migas (Minyak & Gas)</span><span>🛢️</span>
+            </div>
+            <div class="zonasi-item flex items-center justify-between px-3 py-2 bg-gray-100 rounded border border-gray-200 hover:bg-gray-200 transition cursor-pointer" data-file="collected/alurmigrasibiota.geojson" data-name="Migrasi Biota Laut">
+                <span class="text-xs font-medium">Migrasi Biota Laut</span><span>🐋</span>
+            </div>
+        </div>
+        <div id="parameter-list-metocean" class="parameter-list flex flex-col space-y-2 overflow-y-auto max-h-56 pr-2 hidden">
+            <div class="metocean-item flex items-center justify-between px-3 py-2 bg-gray-100 rounded border hover:bg-gray-200 cursor-pointer transition" data-type="batimetri">
+                <span class="text-xs text-gray-700 font-bold">Batimetri Dasar Laut</span><span>🤿</span>
+            </div>
+            <div class="metocean-item flex items-center justify-between px-3 py-2 bg-gray-100 rounded border hover:bg-gray-200 cursor-pointer transition" data-type="arus">
+                <span class="text-xs text-gray-700 font-bold">Arus Laut</span><span>🌊</span>
+            </div>
+            <div class="metocean-item flex items-center justify-between px-3 py-2 bg-gray-100 rounded border hover:bg-gray-200 cursor-pointer transition" data-type="suhu">
+                <span class="text-xs text-gray-700 font-bold">Suhu Air Laut</span><span>🌡️</span>
+            </div>
+            <div class="ekstra-item flex items-center justify-between px-3 py-2 bg-gray-100 rounded border hover:bg-gray-200 cursor-pointer transition" id="btn-thermal-front">
+                <input type="checkbox" id="cb-thermal-front" class="w-3.5 h-3.5 text-blue-600 bg-gray-100 border-gray-300 rounded pointer-events-none">
+                <span class="text-xs text-gray-700 font-bold">Deteksi Thermal Front</span>
+                <span>🌪️</span>
+            </div>
+            
+            <div class="ekstra-item flex items-center justify-between px-3 py-2 bg-gray-100 rounded border hover:bg-gray-200 cursor-pointer transition" id="btn-tide-station">
+                <input type="checkbox" id="cb-tide-station" class="w-3.5 h-3.5 text-blue-600 bg-gray-100 border-gray-300 rounded pointer-events-none">
+                <span class="text-xs text-gray-700 font-bold">Stasiun Pasang Surut</span>
+                <span>🌊</span>
+            </div>
+            <div class="metocean-item flex items-center justify-between px-3 py-2 bg-gray-100 rounded border hover:bg-gray-200 cursor-pointer transition" data-type="gelombang">
+                <span class="text-xs text-gray-700 font-bold">Tinggi Gelombang</span><span>🏄</span>
+            </div>
+            <div class="metocean-item flex items-center justify-between px-3 py-2 bg-gray-100 rounded border hover:bg-gray-200 cursor-pointer transition" data-type="salinitas">
+                <span class="text-xs text-gray-700 font-bold">Salinitas Air Laut</span><span>🧂</span>
+            </div>
+            
+            <div class="metocean-item flex items-center justify-between px-3 py-2 bg-gray-100 rounded border hover:bg-gray-200 cursor-pointer transition" data-type="ssh">
+                <span class="text-xs text-gray-700 font-bold">Elevasi Muka Air</span><span>📏</span>
+            </div> <div class="metocean-item flex items-center justify-between px-3 py-2 bg-gray-100 rounded border hover:bg-gray-200 cursor-pointer transition" data-type="angin">
+                <span class="text-xs text-gray-700 font-bold">Angin Permukaan 10m</span><span>🌬️</span>
+            </div>
+            <div class="metocean-item flex items-center justify-between px-3 py-2 bg-gray-100 rounded border hover:bg-gray-200 cursor-pointer transition" data-type="msl">
+                <span class="text-xs text-gray-700 font-bold">Tekanan Udara (MSLP)</span><span>🌪️</span>
+            </div>
+            <div class="metocean-item flex items-center justify-between px-3 py-2 bg-gray-100 rounded border hover:bg-gray-200 cursor-pointer transition" data-type="hujan">
+                <span class="text-xs text-gray-700 font-bold">Curah Hujan</span><span>🌧️</span>
+            </div>
+        </div>
     </div>
 
-    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
-    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/leaflet-velocity@1.1.0/dist/leaflet-velocity.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chroma-js@2.4.2/chroma.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="demo.js"></script>
+    <div class="absolute bottom-16 right-4 z-10 flex flex-col items-end space-y-3 pointer-events-none">
+        <button class="pointer-events-auto bg-blue-600 text-white p-3 rounded-full shadow-lg hover:bg-blue-700 transition" title="Mulai Tour WebGIS">✈️</button>
+        <div id="toolbar-bottom" class="pointer-events-auto flex space-x-1 bg-white p-1 rounded shadow-lg text-gray-700 border border-gray-100">
+            <button id="btn-zoom-in" class="p-2 hover:bg-gray-200 rounded">➕</button>
+            <button id="btn-home" class="p-2 hover:bg-gray-200 rounded" title="Kembali ke Tampilan Awal">🏠</button>
+            <button id="btn-zoom-out" class="p-2 hover:bg-gray-200 rounded">➖</button>
+            <button id="btn-measure" class="p-2 hover:bg-gray-200 rounded transition-colors" title="Ukur Jarak">📏</button>
+            
+            <button id="btn-polygon" class="p-2 hover:bg-gray-200 rounded transition-colors" title="Gambar Area (Polygon)">⬠</button>
+            <button id="btn-download-poly" class="p-2 hover:bg-gray-200 rounded transition-colors" title="Download SHP Area">💾</button>
+            <button id="btn-clear-all" class="p-2 hover:bg-gray-200 rounded text-red-500 transition-colors" title="Bersihkan Semua Layer">🗑️</button>
+            
+            <button id="btn-print" class="p-2 hover:bg-gray-200 rounded" title="Print / Ekspor PDF">🖨️</button>
+            <button id="btn-fullscreen" class="p-2 hover:bg-gray-200 rounded">⛶</button>
+        </div>
 
+        <div id="legenda-container" class="pointer-events-auto w-full flex flex-col items-end hidden">
+            <div id="legenda-warna" class="w-64 h-3 rounded shadow border border-gray-200"></div>
+            <div class="w-64 flex justify-between mt-1 text-gray-800 font-bold text-[10px] bg-white/70 px-1 rounded">
+                <span id="legenda-min">Min</span><span id="legenda-max">Max</span>
+            </div>
+        </div>
+    </div>
+    <div id="coord-info" class="absolute bottom-16 left-4 z-[9999] bg-white/80 backdrop-blur px-2 py-1 rounded shadow text-[9px] font-mono text-blue-900 font-bold border border-blue-200 pointer-events-none">
+        Lat: 0.0000 | Lon: 0.0000
+    </div>
+    <div id="bottom-bar-container" class="absolute bottom-0 left-0 right-0 z-20 flex items-end pointer-events-none">
+        
+        <div id="depth-container" class="absolute bottom-24 left-4 px-3 py-1.5 bg-white/95 backdrop-blur-sm border border-blue-200 rounded-lg shadow-lg hidden z-[9998] pointer-events-auto w-64 transition-all">
+            <label class="text-[10px] font-bold text-blue-900 block mb-0.5 uppercase tracking-tighter">Kedalaman Laut</label>
+            <div class="flex items-center gap-2">
+                <span class="text-[9px] font-bold text-blue-600">0m</span>
+                <input type="range" id="depthSlider" min="0" value="0" class="flex-1 cursor-pointer accent-blue-600 h-1.5">
+                <span id="maxDepthLabel" class="text-[9px] font-bold text-blue-900">...</span>
+            </div>
+            <div class="text-center mt-0.5 text-xs font-extrabold text-blue-700 border-t border-blue-50 pt-0.5">
+                <span id="depthVal">0 m</span>
+            </div>
+        </div>
+
+        <button id="toggle-bottom-bar" class="pointer-events-auto bg-blue-900 text-white p-1 shadow-md hover:bg-blue-800 focus:outline-none border-t border-r border-blue-800 rounded-tr-lg">
+            <svg class="w-4 h-4 transition-transform duration-300 rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 15l7-7 7 7"></path></svg>
+        </button>
+
+        <div id="bottom-bar-content" class="pointer-events-auto flex-1 flex items-center bg-blue-900 text-white px-4 py-1 shadow-lg border-t border-blue-800 transition-transform duration-300">
+            
+            <button id="play-pause-btn" class="text-white hover:text-yellow-400 mr-4 transition transform hover:scale-110">
+                <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd"></path></svg>
+            </button>
+
+            <div class="flex-1 relative flex flex-col pt-2">
+                <div id="slider-tooltip" class="absolute -top-3 bg-yellow-400 text-blue-900 font-bold px-2 py-0.5 rounded shadow-md text-[9px] transform -translate-x-1/2 whitespace-nowrap z-30 pointer-events-none">
+                    -
+                </div>
+                
+                <input type="range" id="timeSlider" min="0" max="239" value="0" class="w-full h-1 bg-blue-950 rounded-lg cursor-pointer relative z-20 accent-yellow-400 hover:h-1.5 transition-all">
+                
+                <div id="monthLabels" class="flex w-full mt-0.5 text-[9px] text-blue-200 font-medium"></div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="detail-sidebar" class="absolute top-20 left-4 z-[1000] w-72 bg-white/95 backdrop-blur-sm shadow-2xl rounded-xl border border-blue-100 overflow-hidden transition-all duration-500 -translate-x-[120%]">
+        <div class="bg-blue-900 px-4 py-3 flex justify-between items-center">
+            <h3 class="text-white font-bold text-sm uppercase tracking-wider">Detail Kawasan</h3>
+            <button onclick="closeSidebar()" class="text-white/70 hover:text-white">✕</button>
+        </div>
+        <div id="sidebar-content" class="p-5 space-y-4">
+            <p class="text-gray-400 text-xs italic">Klik pada area peta untuk melihat detail...</p>
+        </div>
+    </div>
+
+    <div id="metocean-sidebar" class="absolute top-20 left-4 z-[1000] w-80 max-h-[60vh] bg-white/95 backdrop-blur-sm shadow-2xl rounded-xl border border-blue-100 overflow-y-auto transition-all duration-500 -translate-x-[120%]">
+        <div class="bg-blue-900 px-4 py-3 flex justify-between items-center sticky top-0 z-10">
+            <h3 class="text-white font-bold text-sm uppercase tracking-wider">Statistik MetOcean</h3>
+            <button onclick="closeMetOceanSidebar()" class="text-white/70 hover:text-white">✕</button>
+        </div>
+        <div class="p-4 space-y-5">
+            <div id="mo-info" class="text-xs text-gray-700 bg-blue-50 p-2 rounded border border-blue-100 shadow-inner"></div>
+            
+            <div id="containerTimeSeries">
+                <label class="text-[10px] font-bold text-gray-500 uppercase">Prakiraan 10 Hari (Time Series)</label>
+                <div class="relative h-44 w-full mt-1"><canvas id="chartTimeSeries"></canvas></div>
+            </div>
+            
+            <div id="containerDepth">
+                <label class="text-[10px] font-bold text-gray-500 uppercase">Profil Kedalaman (Depth Profile)</label>
+                <div class="relative h-44 w-full mt-1"><canvas id="chartDepth"></canvas></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
 </body>
 </html>

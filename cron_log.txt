@@ -1,0 +1,17 @@
+/bin/sh: 1: copernicusmarine: not found
+/bin/sh: 1: copernicusmarine: not found
+/bin/sh: 1: copernicusmarine: not found
+/bin/sh: 1: copernicusmarine: not found
+/bin/sh: 1: copernicusmarine: not found
+--- Memulai Update Data Otomatis (2026-04-16 s/d 2026-04-25) ---
+Menjalankan: copernicusmarine subset -i cmems_mod_glo_phy-theta...
+❌ Gagal: Command 'copernicusmarine subset -i cmems_mod_glo_phy-thetao_anfc_0.083deg_P1D-m -x 109 -X 116 -y -5.5 -Y -0.5 -v thetao -z 0 -Z 200 --start-datetime "2026-04-16" --end-datetime "2026-04-25" -o data_nc -f suhu_kalteng.nc --overwrite' returned non-zero exit status 127.
+Menjalankan: copernicusmarine subset -i cmems_mod_glo_phy-cur_a...
+❌ Gagal: Command 'copernicusmarine subset -i cmems_mod_glo_phy-cur_anfc_0.083deg_P1D-m -x 109 -X 116 -y -5.5 -Y -0.5 -v uo -v vo -z 0 -Z 200 --start-datetime "2026-04-16" --end-datetime "2026-04-25" -o data_nc -f arus_kalteng.nc --overwrite' returned non-zero exit status 127.
+Menjalankan: copernicusmarine subset -i cmems_mod_glo_phy_anfc_...
+❌ Gagal: Command 'copernicusmarine subset -i cmems_mod_glo_phy_anfc_0.083deg_P1D-m -x 109 -X 116 -y -5.5 -Y -0.5 -v zos --start-datetime "2026-04-16" --end-datetime "2026-04-25" -o data_nc -f ssh_kalteng.nc --overwrite' returned non-zero exit status 127.
+Menjalankan: copernicusmarine subset -i cmems_mod_glo_phy-so_an...
+❌ Gagal: Command 'copernicusmarine subset -i cmems_mod_glo_phy-so_anfc_0.083deg_P1D-m -x 109 -X 116 -y -5.5 -Y -0.5 -v so -z 0 -Z 200 --start-datetime "2026-04-16" --end-datetime "2026-04-25" -o data_nc -f salinitas_kalteng.nc --overwrite' returned non-zero exit status 127.
+Menjalankan: copernicusmarine subset -i cmems_mod_glo_wav_anfc_...
+❌ Gagal: Command 'copernicusmarine subset -i cmems_mod_glo_wav_anfc_0.083deg_PT3H-i -x 109 -X 116 -y -5.5 -Y -0.5 -v VHM0 --start-datetime "2026-04-16" --end-datetime "2026-04-25" -o data_nc -f gelombang_kalteng.nc --overwrite' returned non-zero exit status 127.
+--- Semua Data MetOcean Berhasil Diperbarui! ---

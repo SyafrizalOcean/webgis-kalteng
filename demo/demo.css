@@ -157,6 +157,28 @@ body {
     background: rgba(0,0,0,0.2);
     color: #000;
 }
+
+
+/* Styling Tooltip Waktu & Slider */
+#slider-tooltip::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border-width: 5px;
+    border-style: solid;
+    border-color: #d97706 transparent transparent transparent; /* Warna kuning gelap Tailwind */
+}
+
+input[type=range]::-webkit-slider-thumb {
+    appearance: none;
+    width: 4px;
+    height: 24px;
+    background: white;
+    cursor: pointer;
+    border-radius: 2px;
+}
     
 
 
