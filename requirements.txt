@@ -5,3 +5,4 @@ xarray
 netCDF4
 pandas
 numpy
+rioxarray
