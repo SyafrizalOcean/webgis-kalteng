@@ -20,7 +20,7 @@ if not ada_internet():
 
 # 2. CEK APAKAH SUDAH UPDATE HARI INI
 # (Pilih salah satu file .nc kamu sebagai patokan utama)
-file_patokan = "/mnt/c/Users/1212/geoportal-laut-itb-bungsu/data_nc/suhu_kalteng.nc" 
+file_patokan = "data_nc/suhu_kalteng.nc" 
 
 if os.path.exists(file_patokan):
     # Ambil tanggal terakhir file tersebut dimodifikasi

@@ -259,7 +259,7 @@ def api_batimetri():
 def get_thermal_front(hour_index: int):
     try:
         # 1. Buka dataset Suhu Air Laut
-        ds = xr.open_dataset('/mnt/c/Users/1212/geoportal-laut-itb-bungsu/data_nc/suhu_kalteng.nc')
+        ds = xr.open_dataset('data_nc/suhu_kalteng.nc')
         
         # --- KUNCI PERBAIKAN ERROR DI SINI ---
         # Konversi indeks jam (0-239) menjadi indeks hari (0-9) dengan pembulatan ke bawah (// 24)

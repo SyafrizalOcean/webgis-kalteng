@@ -1034,7 +1034,14 @@ async function renderThermalFront(dayIndex) {
         const res = await fetch(`https://api-webgis-kalteng.onrender.com/api/thermal-front/${dayIndex}`);
         const data = await res.json();
         
-        if (data.error) return;
+        // 1. LIHAT ISI ASLINYA DI SINI
+        console.log("Wujud Asli Data dari Server:", data);
+
+        // 2. Cegah Leaflet crash jika formatnya salah
+        if (!data || (data.type !== "FeatureCollection" && data.type !== "Feature")) {
+            console.error("❌ GAGAL: Data dari server bukan GeoJSON! Isinya:", data);
+            return; // Berhenti di sini agar layar tidak error merah
+        }
 
         thermalFrontLayer = L.geoJSON(data, {
             pane: 'metoceanPane',
