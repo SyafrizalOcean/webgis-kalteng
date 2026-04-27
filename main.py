@@ -288,7 +288,7 @@ def get_thermal_front(hour_index: int):
         G[coastal_mask] = 0
         
         # 5. THRESHOLDING: Ambang batas 0.25 derajat
-        threshold = 0.25 
+        threshold = 1.5 
         contours = measure.find_contours(G, threshold)
         
         # 6. Konversi ke GeoJSON (Lat/Lon)
