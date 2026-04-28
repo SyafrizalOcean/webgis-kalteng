@@ -524,3 +524,21 @@ def get_tide_srgi(station_code: str):
         return {"error": "Koneksi ke SRGI Timeout (Server pemerintah sedang lambat)."}
     except Exception as e:
         return {"error": f"Error Sistem: {str(e)}"}
+
+
+import os
+import datetime
+
+@app.get("/api/cek-radar")
+def cek_file_server():
+    try:
+        files = os.listdir("data_met")
+        hasil = {}
+        for f in files:
+            path_file = f"data_met/{f}"
+            waktu_modifikasi = os.path.getmtime(path_file)
+            waktu_nyata = datetime.datetime.fromtimestamp(waktu_modifikasi).strftime('%Y-%m-%d %H:%M:%S')
+            hasil[f] = waktu_nyata
+        return {"status": "Radar Aktif", "isi_folder_render": hasil}
+    except Exception as e:
+        return {"error": str(e)}

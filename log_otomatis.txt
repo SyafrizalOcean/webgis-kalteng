@@ -1020,3 +1020,65 @@ Menjalankan: /home/syafrizalocean/venv/bin/copernicusmarine sub...
 Menjalankan: /home/syafrizalocean/venv/bin/copernicusmarine sub...
 ✅ Berhasil.
 --- Semua Data MetOcean Berhasil Diperbarui! ---
+INFO - 2026-04-28T04:00:10Z - Selected dataset version: "202406"
+INFO - 2026-04-28T04:00:10Z - Selected dataset part: "default"
+WARNING - 2026-04-28T04:00:10Z - Some of your subset selection [0.0, 200.0] for the depth dimension exceed the dataset coordinates [0.49402499198913574, 5727.9169921875]
+  0%|          | 0/79 [00:00<?, ?it/s]  1%|▏         | 1/79 [00:04<06:07,  4.71s/it] 41%|████      | 32/79 [00:05<00:05,  8.74it/s] 48%|████▊     | 38/79 [00:05<00:04, 10.10it/s] 57%|█████▋    | 45/79 [00:05<00:02, 12.53it/s] 63%|██████▎   | 50/79 [00:05<00:02, 13.36it/s]100%|██████████| 79/79 [00:05<00:00, 13.54it/s]
+{
+  "file_size": 5.158419847328244,
+  "data_transfer_size": 175.9716641221374,
+  "status": "000",
+  "message": "The request was successful."
+}
+INFO - 2026-04-28T04:00:28Z - Selected dataset version: "202406"
+INFO - 2026-04-28T04:00:28Z - Selected dataset part: "default"
+WARNING - 2026-04-28T04:00:28Z - Some of your subset selection [0.0, 200.0] for the depth dimension exceed the dataset coordinates [0.49402499198913574, 5727.9169921875]
+  0%|          | 0/158 [00:00<?, ?it/s]  1%|          | 1/158 [00:07<18:45,  7.17s/it]  3%|▎         | 4/158 [00:07<03:39,  1.43s/it] 11%|█         | 17/158 [00:07<00:36,  3.91it/s] 19%|█▉        | 30/158 [00:07<00:15,  8.27it/s] 28%|██▊       | 45/158 [00:09<00:12,  8.98it/s] 32%|███▏      | 50/158 [00:10<00:16,  6.73it/s] 35%|███▌      | 56/158 [00:11<00:12,  8.32it/s] 54%|█████▍    | 86/158 [00:11<00:03, 21.52it/s] 62%|██████▏   | 98/158 [00:11<00:02, 27.25it/s] 70%|██████▉   | 110/158 [00:12<00:02, 22.89it/s] 77%|███████▋  | 121/158 [00:12<00:01, 22.06it/s] 86%|████████▌ | 136/158 [00:12<00:00, 25.91it/s] 92%|█████████▏| 145/158 [00:13<00:00, 28.80it/s]100%|██████████| 158/158 [00:13<00:00, 11.97it/s]
+{
+  "file_size": 10.303839694656489,
+  "data_transfer_size": 351.9433282442748,
+  "status": "000",
+  "message": "The request was successful."
+}
+INFO - 2026-04-28T04:00:52Z - Selected dataset version: "202406"
+INFO - 2026-04-28T04:00:52Z - Selected dataset part: "default"
+{
+  "file_size": 0.21090076335877864,
+  "data_transfer_size": 4.713526717557252,
+  "status": "000",
+  "message": "The request was successful."
+}
+INFO - 2026-04-28T04:01:07Z - Selected dataset version: "202406"
+INFO - 2026-04-28T04:01:07Z - Selected dataset part: "default"
+WARNING - 2026-04-28T04:01:07Z - Some of your subset selection [0.0, 200.0] for the depth dimension exceed the dataset coordinates [0.49402499198913574, 5727.9169921875]
+  0%|          | 0/79 [00:00<?, ?it/s]  1%|▏         | 1/79 [00:04<05:40,  4.36s/it] 20%|██        | 16/79 [00:04<00:12,  4.96it/s] 32%|███▏      | 25/79 [00:05<00:07,  7.18it/s] 49%|████▉     | 39/79 [00:05<00:03, 12.49it/s] 57%|█████▋    | 45/79 [00:05<00:02, 13.79it/s] 62%|██████▏   | 49/79 [00:06<00:02, 12.97it/s]100%|██████████| 79/79 [00:06<00:00, 13.02it/s]
+{
+  "file_size": 5.158419847328244,
+  "data_transfer_size": 175.9716641221374,
+  "status": "000",
+  "message": "The request was successful."
+}
+INFO - 2026-04-28T04:01:25Z - Selected dataset version: "202411"
+INFO - 2026-04-28T04:01:25Z - Selected dataset part: "default"
+{
+  "file_size": 0.735337786259542,
+  "data_transfer_size": 92.55083969465649,
+  "status": "000",
+  "message": "The request was successful."
+}
+--- Pengecekan Rutin: 2026-04-28 11:00:01.994813 ---
+Internet OK! Data Belum Update! Memulai proses download dari satelit...
+--- Memulai Update Data Otomatis (2026-04-28 s/d 2026-05-07) ---
+Menjalankan: /home/syafrizalocean/venv/bin/copernicusmarine sub...
+✅ Berhasil.
+Menjalankan: /home/syafrizalocean/venv/bin/copernicusmarine sub...
+✅ Berhasil.
+Menjalankan: /home/syafrizalocean/venv/bin/copernicusmarine sub...
+✅ Berhasil.
+Menjalankan: /home/syafrizalocean/venv/bin/copernicusmarine sub...
+✅ Berhasil.
+Menjalankan: /home/syafrizalocean/venv/bin/copernicusmarine sub...
+✅ Berhasil.
+--- Semua Data MetOcean Berhasil Diperbarui! ---
+--- Pengecekan Rutin: 2026-04-28 12:00:02.754975 ---
+Misi dibatalkan: Data sudah versi terbaru hari ini. Lanjut tidur zzz...
