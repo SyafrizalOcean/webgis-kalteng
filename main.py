@@ -16,6 +16,9 @@ import math
 import requests
 from pytz import timezone
 
+import requests
+import urllib.parse
+
 app = FastAPI(title="MetOcean API Kalteng - Ultra Hemat RAM")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
@@ -336,44 +339,39 @@ def get_thermal_front(hour_index: int):
 # API PROFIL KEDALAMAN (DEPTH PROFILE) 100% REAL DATA
 # ==========================================
 @app.get("/api/profile")
-def get_depth_profile(lat: float, lon: float, param: str):
-    # 1. Gunakan dataset global yang sudah di-load agar super cepat
-    if param == 'suhu':
-        ds = ds_suhu
-    elif param == 'salinitas':
-        ds = ds_salinitas
-    elif param == 'arus':
-        ds = ds_arus
-    else:
-        return {"error": "Parameter tidak memiliki profil kedalaman"}
+def get_depth_profile(lat: float, lon: float, param: str, time_index: int = 0): # <-- Tambahan time_index di sini
+    # 1. Pilih dataset
+    if param == 'suhu': ds = ds_suhu
+    elif param == 'salinitas': ds = ds_salinitas
+    elif param == 'arus': ds = ds_arus
+    else: return {"error": "Parameter tidak memiliki profil kedalaman"}
 
     try:
-        # 2. Ambil nama variabel secara otomatis (tanpa perlu hardcode 'thetao' atau 'so')
         var_name = list(ds.data_vars)[0]
 
-        # 3. Cari nilai di titik terdekat dengan koordinat klik user
+        # 2. Cari titik koordinat terdekat
         point_data = ds[var_name].sel(latitude=lat, longitude=lon, method='nearest')
         
-        # 4. Hitung rata-rata terhadap waktu (seperti di script matplotlib kamu)
+        # 3. KUNCI PERBAIKAN: Potong waktu sesuai slider
         if 'time' in point_data.dims:
-            point_data = point_data.mean(dim='time')
+            start_time = ds.time.values[0]
+            target_time = start_time + np.timedelta64(time_index, 'h')
+            # Ambil data TEPAT pada jam tersebut
+            point_data = point_data.interp(time=target_time, method='nearest')
             
-        # 5. Keamanan: Pastikan file memiliki data kedalaman
         if 'depth' not in ds.dims and 'depth' not in ds.coords:
              return {"error": "Data tidak memiliki dimensi kedalaman"}
 
-        # 6. Ekstrak kedalaman dan nilai
         depths_raw = ds['depth'].values.tolist()
         values_raw = point_data.values.tolist()
         
         depths = []
         values = []
         
-        # 7. Saring kedalaman maksimal eksak 92.33m
+        # 4. Filter kedalaman maksimal
         for d, v in zip(depths_raw, values_raw):
             if float(d) <= 92.33:
                 depths.append(round(float(d), 2))
-                # Jika datanya NaN (berarti kena daratan), jadikan None agar Frontend/Chart.js paham
                 val = None if np.isnan(v) else round(float(v), 2)
                 values.append(val)
 
@@ -422,9 +420,7 @@ def export_data_csv(lat: float, lon: float, param: str, mode: str):
     filename = f"export_{param}_{mode}_{lat:.2f}_{lon:.2f}.csv"
     return StreamingResponse(output, media_type="text/csv", headers={"Content-Disposition": f"attachment; filename={filename}"})
 
-import requests
-import datetime
-import urllib.parse
+
 
 # ==========================================
 # API PASANG SURUT (SCRAPING SRGI BIG)
@@ -540,5 +536,68 @@ def cek_file_server():
             waktu_nyata = datetime.datetime.fromtimestamp(waktu_modifikasi).strftime('%Y-%m-%d %H:%M:%S')
             hasil[f] = waktu_nyata
         return {"status": "Radar Aktif", "isi_folder_render": hasil}
+    except Exception as e:
+        return {"error": str(e)}
+
+# ==========================================
+# API TIME SERIES (DATA ASLI 10 HARI KE DEPAN)
+# ==========================================
+@app.get("/api/timeseries")
+def get_timeseries(lat: float, lon: float, param: str, depth_index: int = 0):
+    # 1. Tentukan Dataset
+    if param == 'suhu': ds = ds_suhu
+    elif param == 'salinitas': ds = ds_salinitas
+    elif param == 'ssh': ds = ds_ssh
+    elif param == 'gelombang': ds = ds_gelombang
+    elif param == 'msl': ds = ds_msl
+    elif param == 'hujan': ds = ds_tp
+    # Khusus Vektor (Arus & Angin), kita ambil kecepatan resultannya
+    elif param == 'arus': 
+        ds_u, ds_v = ds_arus, ds_arus
+        var_u, var_v = list(ds_u.data_vars)[0], list(ds_v.data_vars)[1] if len(ds_v.data_vars)>1 else list(ds_v.data_vars)[0]
+    elif param == 'angin':
+        ds_u, ds_v = ds_10u, ds_10v
+        var_u, var_v = list(ds_u.data_vars)[0], list(ds_v.data_vars)[0]
+    else: return {"error": "Parameter tidak didukung"}
+
+    try:
+        # LOGIKA KHUSUS VEKTOR (ARUS & ANGIN)
+        if param in ['arus', 'angin']:
+            pt_u = ds_u[var_u].sel(latitude=lat, longitude=lon, method='nearest')
+            pt_v = ds_v[var_v].sel(latitude=lat, longitude=lon, method='nearest')
+            
+            if 'depth' in pt_u.dims:
+                safe_depth = min(depth_index, len(ds_u['depth']) - 1)
+                pt_u = pt_u.isel(depth=safe_depth)
+                pt_v = pt_v.isel(depth=safe_depth)
+                
+            u_vals = pt_u.values
+            v_vals = pt_v.values
+            
+            # Rumus Kecepatan Vektor: akar(U^2 + V^2)
+            mag_vals = np.sqrt(u_vals**2 + v_vals**2)
+            values = [None if np.isnan(v) else round(float(v), 2) for v in mag_vals]
+            return {"values": values}
+
+        # LOGIKA UNTUK SKALAR (SUHU, SALINITAS, DLL)
+        var_name = list(ds.data_vars)[0]
+        point_data = ds[var_name].sel(latitude=lat, longitude=lon, method='nearest')
+        
+        if 'depth' in point_data.dims:
+            safe_depth = min(depth_index, len(ds['depth']) - 1)
+            point_data = point_data.isel(depth=safe_depth)
+            
+        values_raw = point_data.values.tolist()
+        
+        # Konversi satuan khusus ECMWF agar masuk akal di grafik
+        if param == 'msl':
+            values = [None if np.isnan(v) else round(float(v) / 100, 1) for v in values_raw] # Pa ke hPa
+        elif param == 'hujan':
+            values = [None if np.isnan(v) else round(float(v) * 1000, 2) for v in values_raw] # m ke mm
+        else:
+            values = [None if np.isnan(v) else round(float(v), 2) for v in values_raw]
+
+        return {"values": values}
+
     except Exception as e:
         return {"error": str(e)}
