@@ -103,8 +103,9 @@ const configs = {
     salinitas: { title: "Salinitas Air Laut ", scale: chroma.scale(['#ffffe5', '#41ab5d', '#004529']).domain([25, 35]), min: "25 PSU", max: "35 PSU", css: "linear-gradient(to right, #ffffe5, #41ab5d, #004529)" },
     ssh: { title: "Elevasi Muka Air (SSH)", scale: chroma.scale(['#d53e4f', '#ffffbf', '#3288bd']).domain([-0.5, 0.5]), min: "-0.5m", max: "+0.5m", css: "linear-gradient(to right, #d53e4f, #ffffbf, #3288bd)" },
     arus: { title: "Arus Laut " } , msl: { title: "Tekanan Udara (hPa)", scale: chroma.scale(['#0000ff', '#00ffff', '#00ff00', '#ffff00', '#ff0000']).domain([1005, 1015]), min: "Rendah (1005 hPa)", max: "Tinggi (1015 hPa)", css: "linear-gradient(to right, #0000ff, #00ffff, #00ff00, #ffff00, #ff0000)" },
-    hujan: { title: "Curah Hujan (mm)", scale: chroma.scale(['#ffffff', '#00ffff', '#0000ff']).domain([0, 5]), min: "Cerah (0mm)", max: "Hujan (>5mm)", css: "linear-gradient(to right, #ffffff, #00ffff, #0000ff)" },
-    angin: { title: "Angin 10m (m/s)" }, batimetri: { 
+    hujan: { title: "Akumulasi Curah Hujan (mm)", scale: chroma.scale(['#ffffff', '#00ffff', '#0000ff', '#00008b']).domain([0, 50]), min: "Cerah (0mm)", max: "Lebat (>50mm)", css: "linear-gradient(to right, #ffffff, #00ffff, #0000ff, #00008b)" },
+    angin: { title: "Angin 10m (m/s)" }, 
+    batimetri: { 
         title: "Kedalaman Dasar Laut (m)", 
         // Warna biru gelap (palung) ke biru pucat (pesisir)
         scale: chroma.scale(['#000b2e', '#08306b', '#2879b9', '#c8ddf0']), 
@@ -801,22 +802,100 @@ window.buildUnifiedSidebar = async function(lat, lon, zonasiProps = null) {
 
     sidebarContent.innerHTML = html;
 
-    // --- C. GAMBAR GRAFIK TIME SERIES ---
+// --- C. GAMBAR GRAFIK TIME SERIES (DATA ASLI) ---
     if (moData && moData.type !== 'batimetri') {
-        let labelsTime = hourlyDates.filter((_, i) => i % 24 === 0);
-        let dataTime = labelsTime.map(() => moData.val + (Math.sin(Math.random() * Math.PI) * (moData.val * 0.05)));
+        
+        // 1. Kosongkan kanvas dan tampilkan indikator loading
+        const tsCanvasContainer = document.getElementById('chartTimeSeries').parentNode;
+        tsCanvasContainer.innerHTML = '<span id="loading-ts" class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-[10px] text-blue-600 font-bold animate-pulse">Menarik data 10 Hari...</span><canvas id="chartTimeSeries" class="w-full h-full"></canvas>';
 
-        if(timeChartInstance) timeChartInstance.destroy();
-        timeChartInstance = new Chart(document.getElementById('chartTimeSeries').getContext('2d'), {
-            type: 'line', 
-            data: { labels: labelsTime.map(d => d.split(' - ')[0]), datasets: [{ label: moData.title, data: dataTime, borderColor: '#2563eb', backgroundColor: 'rgba(37, 99, 235, 0.2)', fill: true, tension: 0.4, pointRadius: 1 }] },
-            options: { maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { font: { size: 8 } } }, y: { ticks: { font: { size: 8 } } } } }
-        });
+        try {
+            // 2. Cek apakah layer butuh index kedalaman (3D)
+            let depthParam = '';
+            if (['suhu', 'salinitas', 'arus'].includes(moData.type)) {
+                const dSlider = document.getElementById('depthSlider');
+                if (dSlider) depthParam = `&depth_index=${dSlider.value}`;
+            }
+
+            // 3. Tarik data asli dari Backend!
+            const tsRes = await fetch(`https://api-webgis-kalteng.onrender.com/api/timeseries?lat=${lat}&lon=${lon}&param=${moData.type}${depthParam}`);
+            const tsData = await tsRes.json();
+
+            // 4. Hapus tulisan loading
+            const loadingEl = document.getElementById('loading-ts');
+            if (loadingEl) loadingEl.remove();
+
+                if (!tsData.error && tsData.values) {
+                let labelsTime = [];
+                let dataTime = [];
+                
+                // LOGIKA PEMISAH: COPERNICUS (HARIAN) VS ECMWF (JAM-JAMAN)
+                if (tsData.values.length <= 15) {
+                    // Data Copernicus (Suhu/Salinitas/Arus)
+                    for (let i = 0; i < tsData.values.length; i++) {
+                        let hourIndex = Math.min(i * 24, 239);
+                        labelsTime.push(hourlyDates[hourIndex].split(' - ')[0]); 
+                        dataTime.push(tsData.values[i]);
+                    }
+                } else {
+                    // KUNCI PERBAIKAN ECMWF: Tampilkan SEMUA titik data (64 titik) agar grafik sangat halus!
+                    let currentHour = 0;
+                    for (let i = 0; i < tsData.values.length; i++) {
+                        // Jangan biarkan index lewat dari 239 (Batas array nama hari)
+                        let safeHour = Math.min(currentHour, 239);
+                        
+                        // Tampilkan Nama Hari + Jam (Contoh: "Sel 14:00")
+                        labelsTime.push(hourlyDates[safeHour].split(' - ')[0] + " " + hourlyDates[safeHour].split(' - ')[1]);
+                        dataTime.push(tsData.values[i]);
+                        
+                        // Tambah jam sesuai resolusi ECMWF: 0-144 interval 3 jam, sisanya 6 jam
+                        if (currentHour < 144) {
+                            currentHour += 3;
+                        } else {
+                            currentHour += 6;
+                        }
+                    }
+                }
+
+                // Gambar Grafiknya!
+                if(window.timeChartInstance) window.timeChartInstance.destroy();
+                window.timeChartInstance = new Chart(document.getElementById('chartTimeSeries').getContext('2d'), {
+                    type: 'line', 
+                    data: { 
+                        labels: labelsTime, 
+                        datasets: [{ 
+                            label: moData.title, 
+                            data: dataTime, 
+                            borderColor: '#2563eb', 
+                            backgroundColor: 'rgba(37, 99, 235, 0.2)', 
+                            fill: true, 
+                            tension: 0.4, 
+                            pointRadius: 1, // Perkecil titik agar tidak semut semua kalau datanya banyak
+                            pointHoverRadius: 5
+                        }] 
+                    },
+                    options: { 
+                        maintainAspectRatio: false, 
+                        plugins: { legend: { display: false } }, 
+                        scales: { 
+                            x: { 
+                                ticks: { font: { size: 7 }, maxTicksLimit: 8 } // Batasi jumlah teks di sumbu X agar rapi
+                            }, 
+                            y: { ticks: { font: { size: 8 } } } 
+                        } 
+                    }
+                });
+            }
+
+        } catch(e) {
+            console.error("Gagal memuat Time Series:", e);
+            document.getElementById('chartTimeSeries').parentNode.innerHTML = '<span class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-red-500 text-xs font-bold">Gagal terhubung ke server</span>';
+        }
 
         // --- D. FETCH API & GAMBAR GRAFIK KEDALAMAN (HANYA UNTUK DATA 3D) ---
         if (['suhu', 'salinitas', 'arus'].includes(moData.type)) {
             try {
-                const response = await fetch(`https://api-webgis-kalteng.onrender.com/api/profile?lat=${lat}&lon=${lon}&param=${moData.type}`);
+                const response = await fetch(`https://api-webgis-kalteng.onrender.com/api/profile?lat=${lat}&lon=${lon}&param=${moData.type}&time_index=${currentSliderIndex}`);
                 const realData = await response.json();
 
                 document.getElementById('loading-depth').classList.add('hidden');
@@ -827,7 +906,7 @@ window.buildUnifiedSidebar = async function(lat, lon, zonasiProps = null) {
                 window.depthChartInstance = new Chart(canvasDepth.getContext('2d'), {
                     type: 'line', 
                     data: { labels: realData.depths.map(d => d + 'm'), datasets: [{ label: moData.title, data: realData.values, borderColor: '#0000ff', backgroundColor: '#0000ff', fill: false, tension: 0.1, pointRadius: 3, pointHoverRadius: 6 }] },
-                    options: { maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { position: 'top', title: { display: true, text: `Nilai Parameter`, font: {size: 9, weight: 'bold'} }, ticks: { font: { size: 9 } } }, y: { reverse: true, title: { display: true, text: 'Kedalaman (m)', font: {size: 9, weight: 'bold'} }, ticks: { font: { size: 9 } } } } } 
+                    options: { maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { position: 'top', title: { display: true, text: `Nilai Parameter`, font: {size: 9, weight: 'bold'} }, ticks: { font: { size: 9 } } }, y: { reverse: false, title: { display: true, text: 'Kedalaman (m)', font: {size: 9, weight: 'bold'} }, ticks: { font: { size: 9 } } } } } 
                 });
             } catch (error) {
                 console.error("Gagal menarik data dari server Python:", error);
