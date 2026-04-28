@@ -8,12 +8,19 @@ from skimage import measure
 from apscheduler.schedulers.background import BackgroundScheduler
 from ecmwf.opendata import Client
 import os
-import glob
 from fastapi.responses import StreamingResponse
 import io
 import datetime
 import math
 import requests
+
+import glob
+
+
+# --- PEMBERSIH FILE KORUP SAAT SERVER MENYALA ---
+for f in glob.glob("data_met/*.idx"):
+    try: os.remove(f)
+    except: pass
 
 app = FastAPI(title="MetOcean API Kalteng - Ultra Hemat RAM")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
@@ -337,7 +344,7 @@ def get_timeseries(lat: float, lon: float, param: str, depth_index: int = 0):
         return {"error": str(e)}
     finally:
         gc.collect() # SIRAM TOILET RAM!
-        
+
 # ==========================================
 # EKSPOR, PASUT, & RADAR
 # ==========================================
