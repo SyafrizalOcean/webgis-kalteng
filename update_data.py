@@ -41,8 +41,7 @@ print("Internet OK! Data Belum Update! Memulai proses download dari satelit...")
 
 # 1. Pindah ke folder proyek (Sesuaikan path ini dengan folder kamu)
 # Gunakan absolute path agar Cronjob tidak bingung
-base_path = "/mnt/c/Users/1212/geoportal-laut-itb-bungsu"
-os.chdir(base_path)
+base_path = os.getcwd()
 
 # 2. Hitung Tanggal Otomatis
 today = datetime.now()

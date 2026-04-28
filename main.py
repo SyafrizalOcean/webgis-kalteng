@@ -14,6 +14,7 @@ import io
 import datetime
 import math
 import requests
+from pytz import timezone
 
 app = FastAPI(title="MetOcean API Kalteng - Ultra Hemat RAM")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
@@ -44,6 +45,7 @@ ds_tp = open_grib('data_met/tp_kalteng.grib2')
 # ==========================================
 # ROBOT PENJADWALAN OTOMATIS (UPDATE ECMWF)
 # ==========================================
+from pytz import timezone # Pastikan ini di-import agar timezone Jakarta berfungsi
 
 def update_cuaca_otomatis():
     print("\n⏳ [AUTO-UPDATE] Memulai download data cuaca ECMWF terbaru...")
@@ -78,7 +80,6 @@ def update_cuaca_otomatis():
         
         for param, filename in params.items():
             print(f"  -> Mendownload {param.upper()} (Global Data)...")
-            # KUNCI PERBAIKAN: Hapus parameter 'area' agar ECMWF tidak marah
             client.retrieve(
                 type="fc", 
                 param=param, 
@@ -99,15 +100,21 @@ def update_cuaca_otomatis():
         print(f"❌ [AUTO-UPDATE] Gagal membuka ulang file: {e}")
 
 
+# --- PINTU DARURAT (API FORCE UPDATE) ---
+# Ini yang baru! URL khusus untuk memaksa server download kapan saja.
+@app.get("/api/force-update")
+async def force_update():
+    print("⚡ Menerima perintah PAKSA UPDATE dari browser!")
+    update_cuaca_otomatis()
+    return {"status": "Sukses", "message": "Proses download sedang berjalan! Silakan cek tab Logs di Render."}
+
+
 # --- NYALAKAN MESIN PENJADWALAN ---
 from apscheduler.schedulers.background import BackgroundScheduler
 scheduler = BackgroundScheduler()
 
-# KUNCI PERBAIKAN: Kembalikan jadwal ke Jam 08:00 Pagi setiap hari
-scheduler.add_job(update_cuaca_otomatis, 'cron', hour=8, minute=0)
-
-# (Interval 1 menit ditutup selamanya agar laptop aman)
-# scheduler.add_job(update_cuaca_otomatis, 'interval', minutes=1)
+# KUNCI PERBAIKAN: Jadwal Jam 08:00 Pagi dengan Zona Waktu Asia/Jakarta
+scheduler.add_job(update_cuaca_otomatis, 'cron', hour=8, minute=0, timezone='Asia/Jakarta')
 
 scheduler.start()
 # ==========================================
