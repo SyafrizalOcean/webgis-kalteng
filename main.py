@@ -8,47 +8,71 @@ from skimage import measure
 from apscheduler.schedulers.background import BackgroundScheduler
 from ecmwf.opendata import Client
 import os
+import glob
 from fastapi.responses import StreamingResponse
 import io
 import datetime
 import math
 import requests
-
-import glob
-
-
-# --- PEMBERSIH FILE KORUP SAAT SERVER MENYALA ---
-for f in glob.glob("data_met/*.idx"):
-    try: os.remove(f)
-    except: pass
+import gc
 
 app = FastAPI(title="MetOcean API Kalteng - Ultra Hemat RAM")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
-print("Membuka File Satelit Laut secara Lazy Load...")
+print("🚀 Memulai Sistem: Memuat Data Laut Kalteng...")
 
-# --- 1. BUKA FILE LAUT (KARENA NC RINGAN) ---
+# --- 1. DATA LAUT (Sudah dipotong Kalteng dari sananya) ---
 ds_suhu = xr.open_dataset('data_nc/suhu_kalteng.nc')
 ds_arus = xr.open_dataset('data_nc/arus_kalteng.nc')
 ds_salinitas = xr.open_dataset('data_nc/salinitas_kalteng.nc')
 ds_ssh = xr.open_dataset('data_nc/ssh_kalteng.nc')
 ds_gelombang = xr.open_dataset('data_nc/gelombang_kalteng.nc')
 
-# KUNCI RAM HEMAT: Data ECMWF (GRIB) TIDAK LAGI DIBUKA DI SINI!
+# --- 2. JURUS PAMUNGKAS: POTONG DATA GLOBAL ECMWF DI AWAL ---
+def load_and_crop_grib(file_path):
+    if not os.path.exists(file_path):
+        print(f"⚠️ File tidak ditemukan: {file_path}")
+        return None
+    try:
+        # Buka file Global
+        ds = xr.open_dataset(file_path, engine='cfgrib')
+        if 'time' in ds.coords or 'time' in ds.variables: ds = ds.drop_vars('time')
+        if 'valid_time' in ds.coords and 'step' in ds.dims:
+            ds = ds.swap_dims({'step': 'valid_time'}).rename({'valid_time': 'time'})
+        
+        # POTONG HANYA AREA KALTENG LALU KUNCI DI RAM (.load())
+        # Kalteng ada di Lat: 0 s/d -6, Lon: 108 s/d 117
+        lats = ds.latitude.values
+        if lats[0] > lats[-1]: # Jika urutan dari Utara ke Selatan
+            ds_crop = ds.sel(latitude=slice(1, -7), longitude=slice(108, 117)).load() 
+        else: # Jika dari Selatan ke Utara
+            ds_crop = ds.sel(latitude=slice(-7, 1), longitude=slice(108, 117)).load()
+            
+        # Lepaskan file raksasa dari memori
+        ds.close()
+        del ds
+        gc.collect() # Bersihkan RAM setelah memotong
+        
+        print(f"✅ {file_path} berhasil dikompresi ke Kalteng (Sangat Ringan!)")
+        return ds_crop
+    except Exception as e:
+        print(f"❌ Gagal memuat {file_path}: {e}")
+        return None
 
-def open_grib(file_path):
-    ds = xr.open_dataset(file_path, engine='cfgrib')
-    if 'time' in ds.coords or 'time' in ds.variables:
-        ds = ds.drop_vars('time')
-    if 'valid_time' in ds.coords and 'step' in ds.dims:
-        ds = ds.swap_dims({'step': 'valid_time'}).rename({'valid_time': 'time'})
-    return ds
+# Muat data Cuaca menjadi super ringan!
+print("🌤️ Memotong & Memuat Data Cuaca ECMWF...")
+ds_10u = load_and_crop_grib('data_met/10u_kalteng.grib2')
+ds_10v = load_and_crop_grib('data_met/10v_kalteng.grib2')
+ds_msl = load_and_crop_grib('data_met/msl_kalteng.grib2')
+ds_tp = load_and_crop_grib('data_met/tp_kalteng.grib2')
+
 
 # ==========================================
 # ROBOT PENJADWALAN OTOMATIS (UPDATE ECMWF)
 # ==========================================
 def update_cuaca_otomatis():
     print("\n⏳ [AUTO-UPDATE] Memulai download data cuaca ECMWF terbaru...")
+    global ds_10u, ds_10v, ds_msl, ds_tp
     
     idx_files = glob.glob("data_met/*.idx")
     for f in idx_files:
@@ -58,18 +82,18 @@ def update_cuaca_otomatis():
     try:
         client = Client(source="ecmwf")
         waktu_forecast = list(range(0, 145, 3)) + list(range(150, 241, 6))
-        
-        params = {
-            "10u": "10u_kalteng.grib2", 
-            "10v": "10v_kalteng.grib2", 
-            "msl": "msl_kalteng.grib2", 
-            "tp": "tp_kalteng.grib2"
-        }
+        params = {"10u": "10u_kalteng.grib2", "10v": "10v_kalteng.grib2", "msl": "msl_kalteng.grib2", "tp": "tp_kalteng.grib2"}
         
         for param, filename in params.items():
             print(f"  -> Mendownload {param.upper()} (Global Data)...")
             client.retrieve(type="fc", param=param, step=waktu_forecast, target=f"data_met/{filename}")
             
+        print("  -> Memotong dan memuat ulang data ke RAM...")
+        ds_10u = load_and_crop_grib('data_met/10u_kalteng.grib2')
+        ds_10v = load_and_crop_grib('data_met/10v_kalteng.grib2')
+        ds_msl = load_and_crop_grib('data_met/msl_kalteng.grib2')
+        ds_tp = load_and_crop_grib('data_met/tp_kalteng.grib2')
+        
         print("✅ [AUTO-UPDATE] Selesai! WebGIS sekarang menggunakan data cuaca terbaru.")
     except Exception as e:
         print(f"❌ ERROR DOWNLOAD: {e}")
@@ -93,8 +117,12 @@ def load_batimetri(file_path):
     return da.interp(x=new_lon, y=new_lat, method='linear').sortby('y', ascending=False)
 
 ds_bathy = load_batimetri('data_nc/batimetri_kalteng.tif')
-print("✅ Mesin Batimetri Aktif!")
+print("✅ Mesin MetOcean Siap Tempur!")
 
+
+# ==========================================
+# FUNGSI PEMOTONG WAKTU & HALUSKAN PETA
+# ==========================================
 def extract_time_slice(ds, var_name, time_index, depth_index=None):
     start_time = ds.time.values[0]
     target_time = start_time + np.timedelta64(time_index, 'h')
@@ -103,7 +131,9 @@ def extract_time_slice(ds, var_name, time_index, depth_index=None):
         ds_sliced = ds[var_name].isel(depth=safe_depth)
     else:
         ds_sliced = ds[var_name]
-    return ds_sliced.interp(time=target_time, method='linear')
+    
+    # KUNCI ANTI-LEMOT: Gunakan method='nearest', BUKAN 'linear' pada waktu!
+    return ds_sliced.sel(time=target_time, method='nearest')
 
 def spatial_interp_2d(slice_2d):
     min_lon, max_lon = 109.0, 116.0
@@ -119,6 +149,7 @@ def spatial_interp_2d(slice_2d):
     return slice_2d.interp(latitude=new_lat, longitude=new_lon, method='linear').sortby('latitude', ascending=False)
 
 def get_grid_data(ds, time_index, depth_index=None):
+    if ds is None: return {"error": "Data belum siap"}
     var_name = list(ds.data_vars)[0]
     slice_2d = extract_time_slice(ds, var_name, time_index, depth_index)
     refined_slice = spatial_interp_2d(slice_2d)
@@ -128,6 +159,7 @@ def get_grid_data(ds, time_index, depth_index=None):
     return {"nx": len(lons), "ny": len(lats), "lo1": float(lons[0]), "la1": float(lats[0]), "dx": float(np.round(lons[1] - lons[0], 3)), "dy": float(np.round(abs(lats[1] - lats[0]), 3)), "zs": data_flat}
 
 def get_vector_data(ds_u, ds_v, time_index, depth_index=None):
+    if ds_u is None or ds_v is None: return []
     var_u, var_v = list(ds_u.data_vars)[0], list(ds_v.data_vars)[0]
     u_slice = extract_time_slice(ds_u, var_u, time_index, depth_index)
     v_slice = extract_time_slice(ds_v, var_v, time_index, depth_index)
@@ -139,6 +171,7 @@ def get_vector_data(ds_u, ds_v, time_index, depth_index=None):
         {"header": {"parameterCategory": 2, "parameterNumber": 2, "lo1": float(lons[0]), "la1": float(lats[0]), "dx": dx, "dy": dy, "nx": len(lons), "ny": len(lats), "refTime": "0"}, "data": np.where(np.isnan(u_data), None, u_data).flatten().tolist()},
         {"header": {"parameterCategory": 2, "parameterNumber": 3, "lo1": float(lons[0]), "la1": float(lats[0]), "dx": dx, "dy": dy, "nx": len(lons), "ny": len(lats), "refTime": "0"}, "data": np.where(np.isnan(v_data), None, v_data).flatten().tolist()}
     ]
+
 
 # ==========================================
 # ENDPOINT API PETA (LAYER)
@@ -158,56 +191,23 @@ def api_gelombang(time_index: int): return get_grid_data(ds_gelombang, time_inde
 @app.get("/api/ssh/{time_index}")
 def api_ssh(time_index: int): return get_grid_data(ds_ssh, time_index)
 
-import gc # Pastikan ini di-import
-
 @app.get("/api/msl/{time_index}")
 def api_msl(time_index: int):
-    try:
-        with open_grib('data_met/msl_kalteng.grib2') as ds:
-            data = get_grid_data(ds, time_index)
-            data['zs'] = [round(v / 100, 1) if v is not None else None for v in data['zs']]
-            return data
-    finally:
-        gc.collect() # SIRAM TOILET RAM!
+    data = get_grid_data(ds_msl, time_index)
+    data['zs'] = [round(v / 100, 1) if v is not None else None for v in data['zs']]
+    return data
 
 @app.get("/api/hujan/{time_index}")
 def api_hujan(time_index: int):
-    try:
-        with open_grib('data_met/tp_kalteng.grib2') as ds:
-            data = get_grid_data(ds, time_index)
-            data['zs'] = [round(v * 1000, 2) if v is not None else None for v in data['zs']]
-            return data
-    finally:
-        gc.collect() # SIRAM TOILET RAM!
-
-@app.get("/api/angin/{time_index}")
-def api_angin(time_index: int):
-    try:
-        # BUKA SATU-SATU AGAR RAM TIDAK JEBOL
-        with open_grib('data_met/10u_kalteng.grib2') as ds_u:
-            var_u = list(ds_u.data_vars)[0]
-            u_slice = extract_time_slice(ds_u, var_u, time_index)
-            u_ref = spatial_interp_2d(u_slice)
-            u_data = u_ref.values
-            lats, lons = u_ref.latitude.values, u_ref.longitude.values
-            
-        with open_grib('data_met/10v_kalteng.grib2') as ds_v:
-            var_v = list(ds_v.data_vars)[0]
-            v_slice = extract_time_slice(ds_v, var_v, time_index)
-            v_ref = spatial_interp_2d(v_slice)
-            v_data = v_ref.values
-            
-        dx, dy = float(np.round(lons[1] - lons[0], 3)), float(np.round(abs(lats[1] - lats[0]), 3))
-        
-        return [
-            {"header": {"parameterCategory": 2, "parameterNumber": 2, "lo1": float(lons[0]), "la1": float(lats[0]), "dx": dx, "dy": dy, "nx": len(lons), "ny": len(lats), "refTime": "0"}, "data": np.where(np.isnan(u_data), None, u_data).flatten().tolist()},
-            {"header": {"parameterCategory": 2, "parameterNumber": 3, "lo1": float(lons[0]), "la1": float(lats[0]), "dx": dx, "dy": dy, "nx": len(lons), "ny": len(lats), "refTime": "0"}, "data": np.where(np.isnan(v_data), None, v_data).flatten().tolist()}
-        ]
-    finally:
-        gc.collect() # SIRAM TOILET RAM!
+    data = get_grid_data(ds_tp, time_index)
+    data['zs'] = [round(v * 1000, 2) if v is not None else None for v in data['zs']]
+    return data
 
 @app.get("/api/arus/{time_index}/{depth_index}")
 def api_arus(time_index: int, depth_index: int): return get_vector_data(ds_arus, ds_arus, time_index, depth_index)
+
+@app.get("/api/angin/{time_index}")
+def api_angin(time_index: int): return get_vector_data(ds_10u, ds_10v, time_index)
 
 @app.get("/api/batimetri")
 def api_batimetri():
@@ -216,9 +216,51 @@ def api_batimetri():
     lats, lons = ds_bathy.y.values, ds_bathy.x.values
     return {"nx": len(lons), "ny": len(lats), "lo1": float(lons[0]), "la1": float(lats[0]), "dx": 0.033, "dy": 0.033, "zs": data_flat}
 
+
 # ==========================================
-# ENDPOINT ALAT ANALISIS & SIDEBAR
+# ENDPOINT TIME SERIES & LAINNYA
 # ==========================================
+@app.get("/api/timeseries")
+def get_timeseries(lat: float, lon: float, param: str, depth_index: int = 0):
+    if param == 'suhu': ds = ds_suhu
+    elif param == 'salinitas': ds = ds_salinitas
+    elif param == 'ssh': ds = ds_ssh
+    elif param == 'gelombang': ds = ds_gelombang
+    elif param == 'msl': ds = ds_msl
+    elif param == 'hujan': ds = ds_tp
+    elif param == 'arus': 
+        ds_u, ds_v = ds_arus, ds_arus
+        var_u, var_v = list(ds_u.data_vars)[0], list(ds_v.data_vars)[1] if len(ds_v.data_vars)>1 else list(ds_v.data_vars)[0]
+    elif param == 'angin':
+        ds_u, ds_v = ds_10u, ds_10v
+        var_u, var_v = list(ds_u.data_vars)[0], list(ds_v.data_vars)[0]
+    else: return {"error": "Parameter tidak didukung"}
+
+    try:
+        if param in ['arus', 'angin']:
+            pt_u = ds_u[var_u].sel(latitude=lat, longitude=lon, method='nearest')
+            pt_v = ds_v[var_v].sel(latitude=lat, longitude=lon, method='nearest')
+            if 'depth' in pt_u.dims:
+                safe_depth = min(depth_index, len(ds_u['depth']) - 1)
+                pt_u, pt_v = pt_u.isel(depth=safe_depth), pt_v.isel(depth=safe_depth)
+            mag_vals = np.sqrt(pt_u.values**2 + pt_v.values**2)
+            values = [None if np.isnan(v) else round(float(v), 2) for v in mag_vals]
+            return {"values": values}
+
+        var_name = list(ds.data_vars)[0]
+        point_data = ds[var_name].sel(latitude=lat, longitude=lon, method='nearest')
+        if 'depth' in point_data.dims:
+            safe_depth = min(depth_index, len(ds['depth']) - 1)
+            point_data = point_data.isel(depth=safe_depth)
+            
+        values_raw = point_data.values.tolist()
+        if param == 'msl': values = [None if np.isnan(v) else round(float(v) / 100, 1) for v in values_raw]
+        elif param == 'hujan': values = [None if np.isnan(v) else round(float(v) * 1000, 2) for v in values_raw]
+        else: values = [None if np.isnan(v) else round(float(v), 2) for v in values_raw]
+
+        return {"values": values}
+    except Exception as e: return {"error": str(e)}
+
 @app.get("/api/thermal-front/{hour_index}")
 def get_thermal_front(hour_index: int):
     try:
@@ -228,17 +270,13 @@ def get_thermal_front(hour_index: int):
 
         sst = ds_suhu['thetao'].isel(time=time_idx, depth=0).values
         lons, lats = ds_suhu.longitude.values, ds_suhu.latitude.values
-        
         land_mask = np.isnan(sst) 
         coastal_mask = ndimage.binary_dilation(land_mask, iterations=2) 
         sst_filled = np.nan_to_num(sst, nan=np.nanmean(sst))
-        
         dy, dx = np.gradient(sst_filled)
         G = np.hypot(dx, dy) 
         G[coastal_mask] = 0
-        
-        threshold = 0.5
-        contours = measure.find_contours(G, threshold)
+        contours = measure.find_contours(G, 0.5)
         
         lines = []
         for contour in contours:
@@ -250,11 +288,10 @@ def get_thermal_front(hour_index: int):
             if len(line_coords) > 3: lines.append(line_coords)
                 
         return {"type": "FeatureCollection", "features": [{"type": "Feature", "geometry": {"type": "MultiLineString", "coordinates": lines}, "properties": {"name": "Thermal Front"}}]}
-    except Exception as e:
-        return {"error": str(e)}
+    except Exception as e: return {"error": str(e)}
 
 @app.get("/api/profile")
-def get_depth_profile(lat: float, lon: float, param: str, time_index: int = 0):
+def get_depth_profile(lat: float, lon: float, param: str):
     if param == 'suhu': ds = ds_suhu
     elif param == 'salinitas': ds = ds_salinitas
     elif param == 'arus': ds = ds_arus
@@ -263,16 +300,10 @@ def get_depth_profile(lat: float, lon: float, param: str, time_index: int = 0):
     try:
         var_name = list(ds.data_vars)[0]
         point_data = ds[var_name].sel(latitude=lat, longitude=lon, method='nearest')
-        
-        if 'time' in point_data.dims:
-            start_time = ds.time.values[0]
-            target_time = start_time + np.timedelta64(time_index, 'h')
-            point_data = point_data.interp(time=target_time, method='nearest')
-            
+        if 'time' in point_data.dims: point_data = point_data.mean(dim='time')
         if 'depth' not in ds.dims and 'depth' not in ds.coords: return {"error": "Data tidak ada"}
 
-        depths_raw = ds['depth'].values.tolist()
-        values_raw = point_data.values.tolist()
+        depths_raw, values_raw = ds['depth'].values.tolist(), point_data.values.tolist()
         depths, values = [], []
         
         for d, v in zip(depths_raw, values_raw):
@@ -283,71 +314,34 @@ def get_depth_profile(lat: float, lon: float, param: str, time_index: int = 0):
         return {"depths": depths, "values": values}
     except Exception as e: return {"error": str(e)}
 
-@app.get("/api/timeseries")
-def get_timeseries(lat: float, lon: float, param: str, depth_index: int = 0):
-    import gc
+@app.get("/api/tide")
+def get_tide_srgi(station_code: str):
+    session = requests.Session()
     try:
-        # LOGIKA KHUSUS ANGIN (GRIB BERAT)
-        if param == 'angin':
-            with open_grib('data_met/10u_kalteng.grib2') as ds_u:
-                var_u = list(ds_u.data_vars)[0]
-                u_vals = ds_u[var_u].sel(latitude=lat, longitude=lon, method='nearest').values
-            
-            with open_grib('data_met/10v_kalteng.grib2') as ds_v:
-                var_v = list(ds_v.data_vars)[0]
-                v_vals = ds_v[var_v].sel(latitude=lat, longitude=lon, method='nearest').values
-            
-            mag_vals = np.sqrt(u_vals**2 + v_vals**2)
-            values = [None if np.isnan(v) else round(float(v), 2) for v in mag_vals]
-            return {"values": values}
+        session.get("https://srgi.big.go.id/tides", headers={"User-Agent": "Mozilla"}, timeout=10)
+        xsrf = urllib.parse.unquote(session.cookies.get('XSRF-TOKEN', ''))
+        now = datetime.datetime.now()
+        api_url = f"https://srgi.big.go.id/tides_data/pasut_{station_code}?new=true&date={now.year}/{now.month}/{now.day}&timestamp={int(now.timestamp())}"
+        res = session.get(api_url, headers={"User-Agent": "Mozilla", "X-XSRF-TOKEN": xsrf}, timeout=15).json()
+        
+        data_arr = res.get('predictions', []) or res.get('results', [])
+        elevs = [float(i.get('RAD1') or i.get('RAD2') or i.get('PRS') or 0) for i in data_arr]
+        if not elevs: return {"error": "Sensor mati"}
+        return {"station": station_code, "times": [i.get('ts') for i in data_arr], "elevations": elevs, "hat": round(max(elevs), 2), "lat": round(min(elevs), 2)}
+    except Exception as e: return {"error": str(e)}
 
-        # LOGIKA MSL & HUJAN (GRIB BERAT)
-        elif param in ['msl', 'hujan']:
-            file_path = 'data_met/msl_kalteng.grib2' if param == 'msl' else 'data_met/tp_kalteng.grib2'
-            with open_grib(file_path) as ds:
-                var_name = list(ds.data_vars)[0]
-                vals = ds[var_name].sel(latitude=lat, longitude=lon, method='nearest').values.tolist()
+@app.get("/api/force-update")
+def force_update():
+    update_cuaca_otomatis()
+    return {"status": "success"}
+    
+@app.get("/api/cek-radar")
+def cek_file_server():
+    try:
+        files = os.listdir("data_met")
+        return {"status": "Radar Aktif", "isi_folder": {f: datetime.datetime.fromtimestamp(os.path.getmtime(f"data_met/{f}")).strftime('%Y-%m-%d %H:%M:%S') for f in files}}
+    except Exception as e: return {"error": str(e)}
 
-            if param == 'msl': values = [None if np.isnan(v) else round(float(v) / 100, 1) for v in vals]
-            else: values = [None if np.isnan(v) else round(float(v) * 1000, 2) for v in vals]
-            return {"values": values}
-
-        # LOGIKA PARAMETER LAUT (NC RINGAN)
-        if param == 'suhu': ds = ds_suhu
-        elif param == 'salinitas': ds = ds_salinitas
-        elif param == 'ssh': ds = ds_ssh
-        elif param == 'gelombang': ds = ds_gelombang
-        elif param == 'arus': 
-            var_u = list(ds_arus.data_vars)[0]
-            var_v = list(ds_arus.data_vars)[1] if len(ds_arus.data_vars)>1 else list(ds_arus.data_vars)[0]
-            pt_u = ds_arus[var_u].sel(latitude=lat, longitude=lon, method='nearest')
-            pt_v = ds_arus[var_v].sel(latitude=lat, longitude=lon, method='nearest')
-            if 'depth' in pt_u.dims:
-                safe_depth = min(depth_index, len(ds_arus['depth']) - 1)
-                pt_u, pt_v = pt_u.isel(depth=safe_depth), pt_v.isel(depth=safe_depth)
-            mag_vals = np.sqrt(pt_u.values**2 + pt_v.values**2)
-            values = [None if np.isnan(v) else round(float(v), 2) for v in mag_vals]
-            return {"values": values}
-        else: return {"error": "Parameter tidak didukung"}
-
-        var_name = list(ds.data_vars)[0]
-        point_data = ds[var_name].sel(latitude=lat, longitude=lon, method='nearest')
-        if 'depth' in point_data.dims:
-            safe_depth = min(depth_index, len(ds['depth']) - 1)
-            point_data = point_data.isel(depth=safe_depth)
-            
-        values_raw = point_data.values.tolist()
-        values = [None if np.isnan(v) else round(float(v), 2) for v in values_raw]
-        return {"values": values}
-
-    except Exception as e:
-        return {"error": str(e)}
-    finally:
-        gc.collect() # SIRAM TOILET RAM!
-
-# ==========================================
-# EKSPOR, PASUT, & RADAR
-# ==========================================
 @app.get("/api/export-csv")
 def export_data_csv(lat: float, lon: float, param: str, mode: str):
     if param == 'suhu': ds = ds_suhu
@@ -373,32 +367,3 @@ def export_data_csv(lat: float, lon: float, param: str, mode: str):
 
     output.seek(0)
     return StreamingResponse(output, media_type="text/csv", headers={"Content-Disposition": f"attachment; filename=export_{param}.csv"})
-
-@app.get("/api/tide")
-def get_tide_srgi(station_code: str):
-    session = requests.Session()
-    try:
-        session.get("https://srgi.big.go.id/tides", headers={"User-Agent": "Mozilla"}, timeout=10)
-        xsrf = urllib.parse.unquote(session.cookies.get('XSRF-TOKEN', ''))
-        now = datetime.datetime.now()
-        api_url = f"https://srgi.big.go.id/tides_data/pasut_{station_code}?new=true&date={now.year}/{now.month}/{now.day}&timestamp={int(now.timestamp())}"
-        res = session.get(api_url, headers={"User-Agent": "Mozilla", "X-XSRF-TOKEN": xsrf}, timeout=15).json()
-        
-        data_arr = res.get('predictions', []) or res.get('results', [])
-        elevs = [float(i.get('RAD1') or i.get('RAD2') or i.get('PRS') or 0) for i in data_arr]
-        if not elevs: return {"error": "Sensor mati"}
-        
-        return {"station": station_code, "times": [i.get('ts') for i in data_arr], "elevations": elevs, "hat": round(max(elevs), 2), "lat": round(min(elevs), 2)}
-    except Exception as e: return {"error": str(e)}
-
-@app.get("/api/force-update")
-def force_update():
-    update_cuaca_otomatis()
-    return {"status": "success"}
-    
-@app.get("/api/cek-radar")
-def cek_file_server():
-    try:
-        files = os.listdir("data_met")
-        return {"status": "Radar Aktif", "isi_folder": {f: datetime.datetime.fromtimestamp(os.path.getmtime(f"data_met/{f}")).strftime('%Y-%m-%d %H:%M:%S') for f in files}}
-    except Exception as e: return {"error": str(e)}
