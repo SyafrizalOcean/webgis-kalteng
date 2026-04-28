@@ -151,28 +151,56 @@ def api_gelombang(time_index: int): return get_grid_data(ds_gelombang, time_inde
 @app.get("/api/ssh/{time_index}")
 def api_ssh(time_index: int): return get_grid_data(ds_ssh, time_index)
 
-# KUNCI HEMAT RAM: BUKA -> SEDOT -> TUTUP
+import gc # Pastikan ini di-import
+
 @app.get("/api/msl/{time_index}")
 def api_msl(time_index: int):
-    with open_grib('data_met/msl_kalteng.grib2') as ds:
-        data = get_grid_data(ds, time_index)
-        data['zs'] = [round(v / 100, 1) if v is not None else None for v in data['zs']]
-        return data
+    try:
+        with open_grib('data_met/msl_kalteng.grib2') as ds:
+            data = get_grid_data(ds, time_index)
+            data['zs'] = [round(v / 100, 1) if v is not None else None for v in data['zs']]
+            return data
+    finally:
+        gc.collect() # SIRAM TOILET RAM!
 
 @app.get("/api/hujan/{time_index}")
 def api_hujan(time_index: int):
-    with open_grib('data_met/tp_kalteng.grib2') as ds:
-        data = get_grid_data(ds, time_index)
-        data['zs'] = [round(v * 1000, 2) if v is not None else None for v in data['zs']]
-        return data
-
-@app.get("/api/arus/{time_index}/{depth_index}")
-def api_arus(time_index: int, depth_index: int): return get_vector_data(ds_arus, ds_arus, time_index, depth_index)
+    try:
+        with open_grib('data_met/tp_kalteng.grib2') as ds:
+            data = get_grid_data(ds, time_index)
+            data['zs'] = [round(v * 1000, 2) if v is not None else None for v in data['zs']]
+            return data
+    finally:
+        gc.collect() # SIRAM TOILET RAM!
 
 @app.get("/api/angin/{time_index}")
 def api_angin(time_index: int):
-    with open_grib('data_met/10u_kalteng.grib2') as ds_u, open_grib('data_met/10v_kalteng.grib2') as ds_v:
-        return get_vector_data(ds_u, ds_v, time_index)
+    try:
+        # BUKA SATU-SATU AGAR RAM TIDAK JEBOL
+        with open_grib('data_met/10u_kalteng.grib2') as ds_u:
+            var_u = list(ds_u.data_vars)[0]
+            u_slice = extract_time_slice(ds_u, var_u, time_index)
+            u_ref = spatial_interp_2d(u_slice)
+            u_data = u_ref.values
+            lats, lons = u_ref.latitude.values, u_ref.longitude.values
+            
+        with open_grib('data_met/10v_kalteng.grib2') as ds_v:
+            var_v = list(ds_v.data_vars)[0]
+            v_slice = extract_time_slice(ds_v, var_v, time_index)
+            v_ref = spatial_interp_2d(v_slice)
+            v_data = v_ref.values
+            
+        dx, dy = float(np.round(lons[1] - lons[0], 3)), float(np.round(abs(lats[1] - lats[0]), 3))
+        
+        return [
+            {"header": {"parameterCategory": 2, "parameterNumber": 2, "lo1": float(lons[0]), "la1": float(lats[0]), "dx": dx, "dy": dy, "nx": len(lons), "ny": len(lats), "refTime": "0"}, "data": np.where(np.isnan(u_data), None, u_data).flatten().tolist()},
+            {"header": {"parameterCategory": 2, "parameterNumber": 3, "lo1": float(lons[0]), "la1": float(lats[0]), "dx": dx, "dy": dy, "nx": len(lons), "ny": len(lats), "refTime": "0"}, "data": np.where(np.isnan(v_data), None, v_data).flatten().tolist()}
+        ]
+    finally:
+        gc.collect() # SIRAM TOILET RAM!
+
+@app.get("/api/arus/{time_index}/{depth_index}")
+def api_arus(time_index: int, depth_index: int): return get_vector_data(ds_arus, ds_arus, time_index, depth_index)
 
 @app.get("/api/batimetri")
 def api_batimetri():
@@ -250,37 +278,50 @@ def get_depth_profile(lat: float, lon: float, param: str, time_index: int = 0):
 
 @app.get("/api/timeseries")
 def get_timeseries(lat: float, lon: float, param: str, depth_index: int = 0):
-    is_grib = False
-    if param == 'suhu': ds = ds_suhu
-    elif param == 'salinitas': ds = ds_salinitas
-    elif param == 'ssh': ds = ds_ssh
-    elif param == 'gelombang': ds = ds_gelombang
-    elif param == 'msl': 
-        ds = open_grib('data_met/msl_kalteng.grib2')
-        is_grib = True
-    elif param == 'hujan': 
-        ds = open_grib('data_met/tp_kalteng.grib2')
-        is_grib = True
-    elif param == 'arus': 
-        ds_u, ds_v = ds_arus, ds_arus
-        var_u, var_v = list(ds_u.data_vars)[0], list(ds_v.data_vars)[1] if len(ds_v.data_vars)>1 else list(ds_v.data_vars)[0]
-    elif param == 'angin':
-        ds_u = open_grib('data_met/10u_kalteng.grib2')
-        ds_v = open_grib('data_met/10v_kalteng.grib2')
-        var_u, var_v = list(ds_u.data_vars)[0], list(ds_v.data_vars)[0]
-        is_grib = True
-    else: return {"error": "Parameter tidak didukung"}
-
+    import gc
     try:
-        if param in ['arus', 'angin']:
-            pt_u = ds_u[var_u].sel(latitude=lat, longitude=lon, method='nearest')
-            pt_v = ds_v[var_v].sel(latitude=lat, longitude=lon, method='nearest')
+        # LOGIKA KHUSUS ANGIN (GRIB BERAT)
+        if param == 'angin':
+            with open_grib('data_met/10u_kalteng.grib2') as ds_u:
+                var_u = list(ds_u.data_vars)[0]
+                u_vals = ds_u[var_u].sel(latitude=lat, longitude=lon, method='nearest').values
+            
+            with open_grib('data_met/10v_kalteng.grib2') as ds_v:
+                var_v = list(ds_v.data_vars)[0]
+                v_vals = ds_v[var_v].sel(latitude=lat, longitude=lon, method='nearest').values
+            
+            mag_vals = np.sqrt(u_vals**2 + v_vals**2)
+            values = [None if np.isnan(v) else round(float(v), 2) for v in mag_vals]
+            return {"values": values}
+
+        # LOGIKA MSL & HUJAN (GRIB BERAT)
+        elif param in ['msl', 'hujan']:
+            file_path = 'data_met/msl_kalteng.grib2' if param == 'msl' else 'data_met/tp_kalteng.grib2'
+            with open_grib(file_path) as ds:
+                var_name = list(ds.data_vars)[0]
+                vals = ds[var_name].sel(latitude=lat, longitude=lon, method='nearest').values.tolist()
+
+            if param == 'msl': values = [None if np.isnan(v) else round(float(v) / 100, 1) for v in vals]
+            else: values = [None if np.isnan(v) else round(float(v) * 1000, 2) for v in vals]
+            return {"values": values}
+
+        # LOGIKA PARAMETER LAUT (NC RINGAN)
+        if param == 'suhu': ds = ds_suhu
+        elif param == 'salinitas': ds = ds_salinitas
+        elif param == 'ssh': ds = ds_ssh
+        elif param == 'gelombang': ds = ds_gelombang
+        elif param == 'arus': 
+            var_u = list(ds_arus.data_vars)[0]
+            var_v = list(ds_arus.data_vars)[1] if len(ds_arus.data_vars)>1 else list(ds_arus.data_vars)[0]
+            pt_u = ds_arus[var_u].sel(latitude=lat, longitude=lon, method='nearest')
+            pt_v = ds_arus[var_v].sel(latitude=lat, longitude=lon, method='nearest')
             if 'depth' in pt_u.dims:
-                safe_depth = min(depth_index, len(ds_u['depth']) - 1)
+                safe_depth = min(depth_index, len(ds_arus['depth']) - 1)
                 pt_u, pt_v = pt_u.isel(depth=safe_depth), pt_v.isel(depth=safe_depth)
             mag_vals = np.sqrt(pt_u.values**2 + pt_v.values**2)
             values = [None if np.isnan(v) else round(float(v), 2) for v in mag_vals]
             return {"values": values}
+        else: return {"error": "Parameter tidak didukung"}
 
         var_name = list(ds.data_vars)[0]
         point_data = ds[var_name].sel(latitude=lat, longitude=lon, method='nearest')
@@ -289,17 +330,14 @@ def get_timeseries(lat: float, lon: float, param: str, depth_index: int = 0):
             point_data = point_data.isel(depth=safe_depth)
             
         values_raw = point_data.values.tolist()
-        if param == 'msl': values = [None if np.isnan(v) else round(float(v) / 100, 1) for v in values_raw]
-        elif param == 'hujan': values = [None if np.isnan(v) else round(float(v) * 1000, 2) for v in values_raw]
-        else: values = [None if np.isnan(v) else round(float(v), 2) for v in values_raw]
-
+        values = [None if np.isnan(v) else round(float(v), 2) for v in values_raw]
         return {"values": values}
-    except Exception as e: return {"error": str(e)}
-    finally:
-        if is_grib:
-            if param == 'angin': ds_u.close(); ds_v.close()
-            else: ds.close()
 
+    except Exception as e:
+        return {"error": str(e)}
+    finally:
+        gc.collect() # SIRAM TOILET RAM!
+        
 # ==========================================
 # EKSPOR, PASUT, & RADAR
 # ==========================================
