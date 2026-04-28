@@ -39,12 +39,6 @@ def open_grib(file_path):
         ds = ds.swap_dims({'step': 'valid_time'}).rename({'valid_time': 'time'})
     return ds
 
-# ... (kode open_grib kamu yang lama) ...
-ds_10u = open_grib('data_met/10u_kalteng.grib2')
-ds_10v = open_grib('data_met/10v_kalteng.grib2')
-ds_msl = open_grib('data_met/msl_kalteng.grib2')
-ds_tp = open_grib('data_met/tp_kalteng.grib2')
-
 # ==========================================
 # ROBOT PENJADWALAN OTOMATIS (UPDATE ECMWF)
 # ==========================================
@@ -52,17 +46,7 @@ from pytz import timezone # Pastikan ini di-import agar timezone Jakarta berfung
 
 def update_cuaca_otomatis():
     print("\n⏳ [AUTO-UPDATE] Memulai download data cuaca ECMWF terbaru...")
-    global ds_10u, ds_10v, ds_msl, ds_tp
     
-    try:
-        ds_10u.close()
-        ds_10v.close()
-        ds_msl.close()
-        ds_tp.close()
-        print("  -> File memori lama berhasil dilepas.")
-    except Exception as e:
-        print(f"  -> Peringatan saat menutup file: {e}")
-
     import glob, os
     idx_files = glob.glob("data_met/*.idx")
     for f in idx_files:
@@ -89,19 +73,9 @@ def update_cuaca_otomatis():
                 step=waktu_forecast, 
                 target=f"data_met/{filename}"
             )
+        print("✅ [AUTO-UPDATE] Selesai! WebGIS menggunakan data cuaca terbaru.")
     except Exception as e:
         print(f"  -> ERROR DOWNLOAD: {e}")
-
-    print("  -> Membuka ulang data baru ke RAM...")
-    try:
-        ds_10u = open_grib('data_met/10u_kalteng.grib2')
-        ds_10v = open_grib('data_met/10v_kalteng.grib2')
-        ds_msl = open_grib('data_met/msl_kalteng.grib2')
-        ds_tp = open_grib('data_met/tp_kalteng.grib2')
-        print("✅ [AUTO-UPDATE] Selesai! WebGIS sekarang menggunakan data cuaca terbaru.")
-    except Exception as e:
-        print(f"❌ [AUTO-UPDATE] Gagal membuka ulang file: {e}")
-
 
 # --- PINTU DARURAT (API FORCE UPDATE) ---
 # Ini yang baru! URL khusus untuk memaksa server download kapan saja.
@@ -235,23 +209,27 @@ def api_gelombang(time_index: int): return get_grid_data(ds_gelombang, time_inde
 @app.get("/api/ssh/{time_index}")
 def api_ssh(time_index: int): return get_grid_data(ds_ssh, time_index)
 
-@app.get("/api/msl/{time_index}")
-def api_msl(time_index: int):
-    data = get_grid_data(ds_msl, time_index)
-    data['zs'] = [round(v / 100, 1) if v is not None else None for v in data['zs']] # Ubah Pascal ke hPa
-    return data
-
-@app.get("/api/hujan/{time_index}")
-def api_hujan(time_index: int):
-    data = get_grid_data(ds_tp, time_index)
-    data['zs'] = [round(v * 1000, 2) if v is not None else None for v in data['zs']] # Ubah Meter ke milimeter (mm)
-    return data
-
 @app.get("/api/arus/{time_index}/{depth_index}")
 def api_arus(time_index: int, depth_index: int): return get_vector_data(ds_arus, ds_arus, time_index, depth_index)
 
+@app.get("/api/msl/{time_index}")
+def api_msl(time_index: int):
+    with open_grib('data_met/msl_kalteng.grib2') as ds:
+        data = get_grid_data(ds, time_index)
+        data['zs'] = [round(v / 100, 1) if v is not None else None for v in data['zs']]
+        return data
+
+@app.get("/api/hujan/{time_index}")
+def api_hujan(time_index: int):
+    with open_grib('data_met/tp_kalteng.grib2') as ds:
+        data = get_grid_data(ds, time_index)
+        data['zs'] = [round(v * 1000, 2) if v is not None else None for v in data['zs']]
+        return data
+
 @app.get("/api/angin/{time_index}")
-def api_angin(time_index: int): return get_vector_data(ds_10u, ds_10v, time_index)
+def api_angin(time_index: int):
+    with open_grib('data_met/10u_kalteng.grib2') as ds_u, open_grib('data_met/10v_kalteng.grib2') as ds_v:
+        return get_vector_data(ds_u, ds_v, time_index)
 
 @app.get("/api/batimetri")
 def api_batimetri():
@@ -544,20 +522,25 @@ def cek_file_server():
 # ==========================================
 @app.get("/api/timeseries")
 def get_timeseries(lat: float, lon: float, param: str, depth_index: int = 0):
-    # 1. Tentukan Dataset
+    is_grib = False
     if param == 'suhu': ds = ds_suhu
     elif param == 'salinitas': ds = ds_salinitas
     elif param == 'ssh': ds = ds_ssh
     elif param == 'gelombang': ds = ds_gelombang
-    elif param == 'msl': ds = ds_msl
-    elif param == 'hujan': ds = ds_tp
-    # Khusus Vektor (Arus & Angin), kita ambil kecepatan resultannya
+    elif param == 'msl': 
+        ds = open_grib('data_met/msl_kalteng.grib2')
+        is_grib = True
+    elif param == 'hujan': 
+        ds = open_grib('data_met/tp_kalteng.grib2')
+        is_grib = True
     elif param == 'arus': 
         ds_u, ds_v = ds_arus, ds_arus
         var_u, var_v = list(ds_u.data_vars)[0], list(ds_v.data_vars)[1] if len(ds_v.data_vars)>1 else list(ds_v.data_vars)[0]
     elif param == 'angin':
-        ds_u, ds_v = ds_10u, ds_10v
+        ds_u = open_grib('data_met/10u_kalteng.grib2')
+        ds_v = open_grib('data_met/10v_kalteng.grib2')
         var_u, var_v = list(ds_u.data_vars)[0], list(ds_v.data_vars)[0]
+        is_grib = True
     else: return {"error": "Parameter tidak didukung"}
 
     try:
@@ -574,12 +557,11 @@ def get_timeseries(lat: float, lon: float, param: str, depth_index: int = 0):
             u_vals = pt_u.values
             v_vals = pt_v.values
             
-            # Rumus Kecepatan Vektor: akar(U^2 + V^2)
             mag_vals = np.sqrt(u_vals**2 + v_vals**2)
             values = [None if np.isnan(v) else round(float(v), 2) for v in mag_vals]
             return {"values": values}
 
-        # LOGIKA UNTUK SKALAR (SUHU, SALINITAS, DLL)
+        # LOGIKA UNTUK SKALAR
         var_name = list(ds.data_vars)[0]
         point_data = ds[var_name].sel(latitude=lat, longitude=lon, method='nearest')
         
@@ -589,15 +571,19 @@ def get_timeseries(lat: float, lon: float, param: str, depth_index: int = 0):
             
         values_raw = point_data.values.tolist()
         
-        # Konversi satuan khusus ECMWF agar masuk akal di grafik
-        if param == 'msl':
-            values = [None if np.isnan(v) else round(float(v) / 100, 1) for v in values_raw] # Pa ke hPa
-        elif param == 'hujan':
-            values = [None if np.isnan(v) else round(float(v) * 1000, 2) for v in values_raw] # m ke mm
-        else:
-            values = [None if np.isnan(v) else round(float(v), 2) for v in values_raw]
+        if param == 'msl': values = [None if np.isnan(v) else round(float(v) / 100, 1) for v in values_raw]
+        elif param == 'hujan': values = [None if np.isnan(v) else round(float(v) * 1000, 2) for v in values_raw]
+        else: values = [None if np.isnan(v) else round(float(v), 2) for v in values_raw]
 
         return {"values": values}
 
     except Exception as e:
         return {"error": str(e)}
+    finally:
+        # KUNCI PERBAIKAN: Tutup data GRIB setelah selesai dipakai!
+        if is_grib:
+            if param == 'angin':
+                ds_u.close()
+                ds_v.close()
+            else:
+                ds.close()
