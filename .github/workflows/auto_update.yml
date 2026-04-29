@@ -4,7 +4,7 @@ on:
   schedule:
     # Berjalan otomatis setiap jam 01:00 UTC (08:00 WIB Pagi)
     - cron: '0 1 * * *'
-  workflow_dispatch: # Mengizinkan tombol klik manual di web GitHub
+  workflow_dispatch:
 
 jobs:
   update-data:
@@ -18,17 +18,22 @@ jobs:
         with:
           python-version: '3.10'
 
+      # Tambahkan copernicusmarine agar robot bisa download data laut
       - name: Install Library Oseanografi
         run: |
-          pip install xarray ecmwf-opendata cfgrib netCDF4
+          pip install xarray ecmwf-opendata cfgrib netCDF4 copernicusmarine 
 
-      - name: Mulai Download & Potong Data ECMWF
+      - name: Mulai Download Data Cuaca (ECMWF)
         run: python update_udara_lokal.py
+
+      # TUGAS BARU: Suruh robot download data laut juga!
+      - name: Mulai Download Data Laut (Copernicus)
+        run: python update_data.py
 
       - name: Simpan & Kirim ke Server
         run: |
           git config --global user.name "Robot ITB"
           git config --global user.email "robot@github.com"
           git add data_nc/
-          git commit -m "🤖 Auto-update data satelit harian" || echo "Tidak ada data baru"
+          git commit -m "🤖 Auto-update data Cuaca & Laut harian" || echo "Tidak ada data baru"
           git push
