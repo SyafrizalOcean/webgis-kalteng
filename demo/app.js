@@ -824,33 +824,42 @@ window.buildUnifiedSidebar = async function(lat, lon, zonasiProps = null) {
             // 4. Hapus tulisan loading
             const loadingEl = document.getElementById('loading-ts');
             if (loadingEl) loadingEl.remove();
-
+                    
                 if (!tsData.error && tsData.values) {
                     let labelsTime = [];
                     let dataTime = [];
                     
-                    // 1. MASUKKAN TEKS WAKTU SECARA UTUH TERLEBIH DAHULU
+                    // 1. PENYELARASAN TITIK DATA AGAR TIDAK NUMPUK (SIMETRIS)
                     if (tsData.values.length <= 15) {
-                        // Data Copernicus (Suhu, Arus, Salinitas)
+                        // Data Copernicus (Suhu, Arus, Salinitas, Gelombang) - 1 titik per hari
                         for (let i = 0; i < tsData.values.length; i++) {
                             let hourIndex = Math.min(i * 24, 239);
-                            labelsTime.push(hourlyDates[hourIndex]); // Biarkan utuh misal: "Rab 29 - 07:00"
+                            labelsTime.push(hourlyDates[hourIndex]);
                             dataTime.push(tsData.values[i]);
                         }
                     } else {
                         // Data ECMWF (Hujan, MSL, Angin)
-                        let currentHour = 0;
-                        for (let i = 0; i < tsData.values.length; i++) {
-                            let safeHour = Math.min(currentHour, 239);
+                        // KUNCI PERBAIKAN: Kita paksa bikin 81 titik (interval 3 jam FIX) dari hari 1 sampai 10
+                        for (let h = 0; h <= 240; h += 3) {
+                            let safeHour = Math.min(h, 239);
                             labelsTime.push(hourlyDates[safeHour]);
-                            dataTime.push(tsData.values[i]);
-                            
-                            if (currentHour < 144) currentHour += 3;
-                            else currentHour += 6;
+
+                            if (h <= 144) {
+                                // Hari 1-6 (Data asli 3 jam sekali)
+                                let idx = h / 3;
+                                dataTime.push(tsData.values[idx]);
+                            } else {
+                                // Hari 7-10 (Data asli 6 jam sekali, kita duplikat agar grafiknya tetap lebar & simetris!)
+                                let diff = h - 144;
+                                let step6_idx = Math.floor((diff + 3) / 6);
+                                let actual_idx = 48 + step6_idx;
+                                if (actual_idx >= tsData.values.length) actual_idx = tsData.values.length - 1;
+                                dataTime.push(tsData.values[actual_idx]);
+                            }
                         }
                     }
 
-                    // 2. GAMBAR GRAFIKNYA DENGAN PENYARINGAN SUMBU X YANG BENAR
+                    // 2. GAMBAR GRAFIKNYA DENGAN SUMBU X YANG RAPI
                     if(timeChartInstance) timeChartInstance.destroy();
                     timeChartInstance = new Chart(document.getElementById('chartTimeSeries').getContext('2d'), {
                         type: 'line', 
@@ -860,28 +869,29 @@ window.buildUnifiedSidebar = async function(lat, lon, zonasiProps = null) {
                             plugins: { legend: { display: false } }, 
                             scales: { 
                                 x: { 
-                                ticks: { 
-                                    font: { size: 8, weight: 'bold' },
-                                    maxRotation: 0,
-                                    autoSkip: false, // KUNCI 1: Paksa grafik tidak meloncati sumbu
-                                    callback: function(val, index) {
-                                        let label = this.getLabelForValue(val);
-                                        // Jika data laut (Copernicus)
-                                        if (dataTime.length <= 15) {
-                                            return label.split(' - ')[0]; 
+                                    ticks: { 
+                                        font: { size: 8, weight: 'bold' },
+                                        maxRotation: 0,
+                                        autoSkip: false, // KUNCI: JANGAN LONCATI TITIK
+                                        callback: function(val, index) {
+                                            let label = this.getLabelForValue(val);
+                                            // Copernicus: Selalu tampilkan teks hari
+                                            if (dataTime.length <= 15) {
+                                                return label.split(' - ')[0]; 
+                                            }
+                                            // ECMWF: Hanya cetak teks hari saat jam 07:00 pagi WIB
+                                            if (label.includes('07:00')) {
+                                                return label.split(' - ')[0];
+                                            }
+                                            // Sembunyikan jam sisanya dengan teks kosong, BUKAN null
+                                            return ""; 
                                         }
-                                        // Jika data cuaca (ECMWF), cari jam 07:00
-                                        if (label.includes('07:00')) {
-                                            return label.split(' - ')[0];
-                                        }
-                                        return ""; // KUNCI 2: Pakai string kosong, BUKAN null!
+                                    },
+                                    grid: {
+                                        // Garis tegak lurus hanya muncul pas di atas teks nama hari
+                                        color: (ctx) => ctx.tick && ctx.tick.label !== "" ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0)'
                                     }
-                                },
-                                grid: {
-                                    // Garis pemisah antar hari hanya muncul jika ada teksnya
-                                    color: (ctx) => ctx.tick && ctx.tick.label !== "" ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0)'
-                                }
-                            }, 
+                                }, 
                                 y: { ticks: { font: { size: 8 } } } 
                             } 
                         }
