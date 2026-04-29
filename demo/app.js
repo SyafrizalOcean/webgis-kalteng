@@ -106,9 +106,10 @@ const configs = {
     },
     gelombang: { 
         title: "Tinggi Gelombang (m)", 
-        scale: chroma.scale(['#ffffff', '#ccffff', '#66ccff', '#0066ff', '#000099', '#4d004d']).domain([0, 2]), 
-        min: "0 m", max: ">2.5 m", 
-        css: "linear-gradient(to right, #ffffff, #ccffff, #66ccff, #0066ff, #000099, #4d004d)" 
+        // Warna biru laut yang lebih kontras, batas domain diubah ke 1.5m agar riak kecil tetap terlihat
+        scale: chroma.scale(['#e0f3db', '#a8ddb5', '#4eb3d3', '#2b8cbe', '#08589e']).domain([0, 1.5]), 
+        min: "0 m", max: ">1.5 m", 
+        css: "linear-gradient(to right, #e0f3db, #a8ddb5, #4eb3d3, #2b8cbe, #08589e)" 
     },
     salinitas: { 
         title: "Salinitas Air Laut", 
@@ -118,8 +119,9 @@ const configs = {
     },
     ssh: { 
         title: "Elevasi Muka Air (SSH)", 
-        scale: chroma.scale(['#053061', '#2166ac', '#4393c3', '#92c5de', '#d1e5f0', '#f7f7f7', '#fddbc7', '#f4a582', '#d6604d', '#b2182b', '#67001f']).domain([-0.5, 0.5]), 
-        min: "-0.5 m", max: "+0.5 m", 
+        // Batas atas dinaikkan jadi 0.8 meter karena perairan Kalteng sering anomali positif
+        scale: chroma.scale(['#053061', '#2166ac', '#4393c3', '#92c5de', '#d1e5f0', '#f7f7f7', '#fddbc7', '#f4a582', '#d6604d', '#b2182b', '#67001f']).domain([-0.2, 0.8]), 
+        min: "-0.2 m", max: "+0.8 m", 
         css: "linear-gradient(to right, #053061, #2166ac, #4393c3, #92c5de, #d1e5f0, #f7f7f7, #fddbc7, #f4a582, #d6604d, #b2182b, #67001f)" 
     },
     hujan: { 
@@ -466,15 +468,41 @@ async function renderActiveLayer(dayIndex) {
 
         // TAHAP 4A: RENDER DATA UTAMA (BASE LAYER)
         if (activeDataType === 'arus' || activeDataType === 'angin') {
-            // KUNCI PERBAIKAN BUG: Hapus sisa memori kotak-kotak sebelumnya agar kursor tidak salah baca (error param)!
-            window.currentGridData = null; 
+            // KUNCI PERBAIKAN: Menghitung kecepatan mutlak (Phytagoras) dari vektor U dan V agar radar kursor bisa menyala lagi!
+            try {
+                let uData = dayData[0];
+                let vData = dayData[1];
+                let nx = uData.header.nx;
+                let ny = uData.header.ny;
+                let lo1 = uData.header.lo1;
+                let la1 = uData.header.la1;
+                let dx = uData.header.dx;
+                let dy = uData.header.dy;
+
+                let zs = [];
+                for (let i = 0; i < uData.data.length; i++) {
+                    let u = uData.data[i];
+                    let v = vData.data[i];
+                    // Jika data tidak kosong, hitung √(u² + v²)
+                    if (u !== null && v !== null && !isNaN(u) && !isNaN(v)) {
+                        zs.push(Math.sqrt(u*u + v*v)); 
+                    } else {
+                        zs.push(null);
+                    }
+                }
+                // Simpan ke memori agar bisa dilacak oleh kursor radar!
+                window.currentGridData = { nx, ny, lo1, la1, dx, dy, zs };
+            } catch (e) {
+                console.error("Gagal menyusun data radar untuk vektor", e);
+                window.currentGridData = null;
+            }
             
             let isAngin = (activeDataType === 'angin');
             velocityLayer = L.velocityLayer({
                 displayValues: true, 
                 displayOptions: { 
                     velocityType: isAngin ? 'Angin 10m' : 'Arus Laut', 
-                    position: 'bottomleft', // Info kecepatan akan muncul di pojok kiri bawah peta
+                    position: 'bottomleft', 
                     speedUnit: 'm/s' 
                 },
                 data: dayData, 
@@ -484,6 +512,7 @@ async function renderActiveLayer(dayIndex) {
             }).addTo(map);
 
         } else {
+            // Render raster warna kotak-kotak (Suhu, Batimetri, MSL, Salinitas, dsb)
             // Render raster warna kotak-kotak (Suhu, Batimetri, MSL, Salinitas, dsb)
             const nx = dayData.nx, ny = dayData.ny;
             const lo1 = dayData.lo1, la1 = dayData.la1;
@@ -1055,11 +1084,19 @@ if (!hoverTooltip) {
 }
 
 // 4. Nyalakan Radar Hover saat Mouse Bergerak
-map.on('mousemove', function(e) {
+    map.on('mousemove', function(e) {
     let moData = getMetOceanDataMath(e.latlng.lat, e.latlng.lng);
     if (moData) {
-        let unit = moData.type === 'batimetri' ? ' m' : '';
-        hoverTooltip.innerHTML = `<span class="text-gray-300 font-normal tracking-wide">${moData.title}</span><br><span class="text-yellow-400 text-sm">${moData.val.toFixed(1)}${unit}</span>`;
+        // Tentukan satuan secara otomatis berdasarkan jenis data
+        let unit = '';
+        if (moData.type === 'batimetri' || moData.type === 'ssh' || moData.type === 'gelombang') unit = ' m';
+        else if (moData.type === 'suhu') unit = ' °C';
+        else if (moData.type === 'salinitas') unit = ' PSU';
+        else if (moData.type === 'hujan') unit = ' mm';
+        else if (moData.type === 'msl') unit = ' hPa';
+        else if (moData.type === 'arus' || moData.type === 'angin') unit = ' m/s';
+        
+        hoverTooltip.innerHTML = `<span class="text-gray-300 font-normal tracking-wide">${moData.title}</span><br><span class="text-yellow-400 text-sm">${moData.val.toFixed(2)}${unit}</span>`;
         hoverTooltip.style.left = (e.originalEvent.clientX + 15) + 'px';
         hoverTooltip.style.top = (e.originalEvent.clientY + 20) + 'px';
         hoverTooltip.classList.remove('hidden');
