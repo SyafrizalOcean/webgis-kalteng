@@ -368,20 +368,29 @@ def convert_to_webgis_json(data_slice):
         "zs": cleaned_values
     }
 
-def convert_to_velocity_json(data_slice, param_name):
+def convert_to_velocity_json(data_slice, param_name, is_u):
     lats = data_slice.latitude.values
     lons = data_slice.longitude.values
+    # Ubah nilai kosong menjadi 0 agar animasi tidak error
     values = [0 if np.isnan(v) else float(v) for v in data_slice.values.flatten()]
+    
+    # Hitung jarak piksel secara dinamis
+    dx = float(abs(lons[1] - lons[0])) if len(lons) > 1 else 0.083
+    dy = float(abs(lats[1] - lats[0])) if len(lats) > 1 else 0.083
     
     return {
         "header": {
+            "parameterCategory": 2,
+            "parameterNumber": 2 if is_u else 3, # KUNCI ANTI CRASH: 2 untuk U, 3 untuk V
             "nx": len(lons), "ny": len(lats),
             "lo1": float(lons[0]), "la1": float(lats[0]),
-            "dx": 0.083, "dy": 0.083,
+            "dx": dx, "dy": dy,
             "parameterName": param_name
         },
         "data": values
     }
+
+
 
 # --- ENDPOINT API METOCEAN ---
 
@@ -431,8 +440,8 @@ async def get_arus(time_index: int, depth_index: int):
     v_slice = ds['vo'].isel(time=time_index, depth=depth_index)
     
     res = [
-        convert_to_velocity_json(u_slice, "Eastward Velocity"),
-        convert_to_velocity_json(v_slice, "Northward Velocity")
+        convert_to_velocity_json(u_slice, "Eastward Velocity", is_u=True),
+        convert_to_velocity_json(v_slice, "Northward Velocity", is_u=False)
     ]
     ds.close()
     return res

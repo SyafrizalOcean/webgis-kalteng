@@ -549,7 +549,6 @@ async function renderActiveLayer(dayIndex) {
         }
 
         // TAHAP 4B: EFEK OVERLAY PARTIKEL (WINDY.COM CLONE)
-        // Tentukan siapa yang butuh hiasan arus, dan siapa yang butuh hiasan angin
         let needsArusOverlay = ['suhu', 'salinitas', 'ssh'].includes(activeDataType);
         let needsAnginOverlay = ['msl', 'hujan'].includes(activeDataType);
 
@@ -557,27 +556,27 @@ async function renderActiveLayer(dayIndex) {
             try {
                 let overlayUrl = '';
                 if (needsArusOverlay) {
-                    overlayUrl = `https://api-webgis-kalteng.onrender.com/api/arus/${dayIndex}`;
-                    // Jika ada slider kedalaman, pastikan partikel arus mengikuti kedalaman yang dipilih!
-                    if (depthSlider && !depthContainer.classList.contains('hidden')) {
-                        overlayUrl += `/${depthSlider.value}`; 
-                    }
+                    // KUNCI ANTI-404: Pastikan URL arus selalu memiliki angka kedalaman di ujungnya!
+                    let dIndex = (depthSlider && !depthContainer.classList.contains('hidden')) ? depthSlider.value : 0;
+                    overlayUrl = `https://api-webgis-kalteng.onrender.com/api/arus/${dayIndex}/${dIndex}`;
                 } else {
                     overlayUrl = `https://api-webgis-kalteng.onrender.com/api/angin/${dayIndex}`;
                 }
 
-                // Download data partikel secara diam-diam di latar belakang
                 const overlayRes = await fetch(overlayUrl);
+                
+                // Tameng pelindung jika server backend sedang lemot/error
+                if (!overlayRes.ok) throw new Error("Gagal menarik data partikel penghias");
+                
                 const overlayData = await overlayRes.json();
 
                 // Timpa animasi transparan ke atas peta kotak-kotak
                 velocityLayer = L.velocityLayer({
-                    displayValues: false, // Matikan teks pojok kiri bawah agar tidak tabrakan dengan data utama
-                    interactive: false,   // Pastikan kursor tetap bisa menembus klik ke kotak Suhu/MSL di bawahnya
+                    displayValues: false, 
+                    interactive: false,   
                     data: overlayData, 
                     maxVelocity: needsAnginOverlay ? 15.0 : 0.8,
                     velocityScale: needsAnginOverlay ? 0.005 : 0.1,
-                    // KUNCI ESTETIKA: Gunakan warna Putih Transparan (bukan warna-warni) agar terlihat elegan seperti awan/arus air murni
                     colorScale: ["rgba(255,255,255,0.4)", "rgba(255,255,255,0.9)"] 
                 }).addTo(map);
 
@@ -586,7 +585,6 @@ async function renderActiveLayer(dayIndex) {
             }
         }
         
-        // Kembalikan teks waktu sesuai aslinya
         document.getElementById('displayTime').textContent = originalTimeText;
 
     } catch (err) {
