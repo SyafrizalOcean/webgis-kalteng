@@ -119,7 +119,7 @@ const configs = {
 // ==========================================
 const hourlyDates = [];
 const today = new Date();
-today.setHours(0, 0, 0, 0); // Mulai dari 00:00
+today.setHours(7, 0, 0, 0); // Mulai dari 00:00
 
 const shortMonths = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
 const days = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
@@ -858,28 +858,28 @@ window.buildUnifiedSidebar = async function(lat, lon, zonasiProps = null) {
                 }
 
                 // Gambar Grafiknya!
-                if(window.timeChartInstance) window.timeChartInstance.destroy();
-                window.timeChartInstance = new Chart(document.getElementById('chartTimeSeries').getContext('2d'), {
+                if(timeChartInstance) timeChartInstance.destroy();
+                timeChartInstance = new Chart(document.getElementById('chartTimeSeries').getContext('2d'), {
                     type: 'line', 
-                    data: { 
-                        labels: labelsTime, 
-                        datasets: [{ 
-                            label: moData.title, 
-                            data: dataTime, 
-                            borderColor: '#2563eb', 
-                            backgroundColor: 'rgba(37, 99, 235, 0.2)', 
-                            fill: true, 
-                            tension: 0.4, 
-                            pointRadius: 1, // Perkecil titik agar tidak semut semua kalau datanya banyak
-                            pointHoverRadius: 5
-                        }] 
-                    },
+                    data: { labels: labelsTime, datasets: [{ label: moData.title, data: dataTime, borderColor: '#2563eb', backgroundColor: 'rgba(37, 99, 235, 0.2)', fill: true, tension: 0.4, pointRadius: 1 }] },
                     options: { 
                         maintainAspectRatio: false, 
                         plugins: { legend: { display: false } }, 
                         scales: { 
                             x: { 
-                                ticks: { font: { size: 7 }, maxTicksLimit: 8 } // Batasi jumlah teks di sumbu X agar rapi
+                                ticks: { 
+                                    font: { size: 8, weight: 'bold' },
+                                    maxRotation: 0,
+                                    // KUNCI GRAFIK RAPI: Hanya tulis label jika jamnya 00:00
+                                    callback: function(val, index) {
+                                        let label = this.getLabelForValue(val);
+                                        return label.includes('00:00') ? label.split(' - ')[0] : null;
+                                    }
+                                },
+                                grid: {
+                                    // Beri garis tebal pemisah antar hari
+                                    color: (ctx) => ctx.tick && ctx.tick.label ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0)'
+                                }
                             }, 
                             y: { ticks: { font: { size: 8 } } } 
                         } 

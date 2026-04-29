@@ -122,9 +122,21 @@ def api_msl(time_index: int):
 
 @app.get("/api/hujan/{time_index}")
 def api_hujan(time_index: int):
-    data = get_grid_data(ds_tp, time_index)
-    data['zs'] = [round(v * 1000, 2) if v is not None else None for v in data['zs']]
-    return data
+    data_curr = get_grid_data(ds_tp, time_index)
+    if time_index == 0:
+        data_curr['zs'] = [round(v * 1000, 2) if v is not None else None for v in data_curr['zs']]
+    else:
+        # Kurangi dengan data jam sebelumnya untuk de-akumulasi
+        data_prev = get_grid_data(ds_tp, time_index - 1)
+        zs_new = []
+        for c, p in zip(data_curr['zs'], data_prev['zs']):
+            if c is not None and p is not None:
+                hujan_murni = max(0, (c - p) * 1000) # Cegah nilai minus
+                zs_new.append(round(hujan_murni, 2))
+            else:
+                zs_new.append(None)
+        data_curr['zs'] = zs_new
+    return data_curr
 
 @app.get("/api/angin/{time_index}")
 def api_angin(time_index: int): return get_vector_data(ds_10u, ds_10v, time_index)
@@ -172,7 +184,16 @@ def get_timeseries(lat: float, lon: float, param: str, depth_index: int = 0):
             
         vals = point_data.values.tolist()
         if param == 'msl': values = [None if np.isnan(v) else round(float(v) / 100, 1) for v in vals]
-        elif param == 'hujan': values = [None if np.isnan(v) else round(float(v) * 1000, 2) for v in vals]
+        elif param == 'hujan': 
+            values = []
+            prev_val = 0
+            for i, v in enumerate(vals):
+                if np.isnan(v): values.append(None)
+                else:
+                    curr_mm = v * 1000
+                    hujan_murni = max(0, curr_mm - prev_val) if i > 0 else curr_mm
+                    values.append(round(hujan_murni, 2))
+                    prev_val = curr_mm
         else: values = [None if np.isnan(v) else round(float(v), 2) for v in vals]
         return {"values": values}
 
@@ -239,16 +260,32 @@ def export_data_csv(lat: float, lon: float, param: str, mode: str):
     if param == 'suhu': ds = ds_suhu
     elif param == 'salinitas': ds = ds_salinitas
     elif param == 'arus': ds = ds_arus
-    else: return {"error": "Parameter tidak didukung"}
+    elif param == 'gelombang': ds = ds_gelombang
+    elif param == 'ssh': ds = ds_ssh
+    elif param == 'msl': ds = ds_msl
+    elif param == 'hujan': ds = ds_tp
+    else: return {"error": "Parameter tidak didukung untuk diekspor ke CSV"}
 
     var_name = list(ds.data_vars)[0]
     output = io.StringIO()
     if mode == 'timeseries':
         point_data = ds[var_name].sel(latitude=lat, longitude=lon, method='nearest')
         if 'depth' in point_data.dims: point_data = point_data.isel(depth=0)
-        output.write("Waktu,Nilai,Latitude,Longitude\n")
+        output.write("Waktu(UTC),Nilai,Latitude,Longitude\n")
+        
+        prev_rain = 0
         for t in range(len(point_data.time)):
-            output.write(f"{str(point_data.time.values[t])},{point_data.isel(time=t).values:.2f},{lat:.4f},{lon:.4f}\n")
+            val = point_data.isel(time=t).values
+            if np.isnan(val): val_str = ""
+            else:
+                if param == 'hujan':
+                    curr = float(val) * 1000
+                    val_str = f"{max(0, curr - prev_rain) if t > 0 else curr:.2f}"
+                    prev_rain = curr
+                elif param == 'msl': val_str = f"{(float(val)/100):.1f}"
+                else: val_str = f"{float(val):.2f}"
+            output.write(f"{str(point_data.time.values[t])},{val_str},{lat:.4f},{lon:.4f}\n")
+            
     elif mode == 'depth':
         point_data = ds[var_name].sel(latitude=lat, longitude=lon, method='nearest').mean(dim='time')
         output.write("Kedalaman(m),Nilai,Latitude,Longitude\n")
@@ -269,11 +306,15 @@ def get_tide_srgi(station_code: str):
         now = datetime.datetime.now()
         api_url = f"https://srgi.big.go.id/tides_data/pasut_{station_code}?new=true&date={now.year}/{now.month}/{now.day}&timestamp={int(now.timestamp())}"
         res = session.get(api_url, headers={"User-Agent": "Mozilla", "X-XSRF-TOKEN": xsrf}, timeout=15).json()
+        
+        # Tameng pelindung jika SRGI Error HTML
+        if isinstance(res, str): return {"error": "Server BIG SRGI sedang maintenance/gangguan."}
+        
         data_arr = res.get('predictions', []) or res.get('results', [])
         elevs = [float(i.get('RAD1') or i.get('RAD2') or i.get('PRS') or 0) for i in data_arr]
-        if not elevs: return {"error": "Sensor mati"}
+        if not elevs: return {"error": "Sensor mati / Data kosong"}
         return {"station": station_code, "times": [i.get('ts') for i in data_arr], "elevations": elevs, "hat": round(max(elevs), 2), "lat": round(min(elevs), 2)}
-    except Exception as e: return {"error": str(e)}
+    except Exception as e: return {"error": f"Koneksi ke SRGI Terputus"}
 
 @app.get("/")
 def home():

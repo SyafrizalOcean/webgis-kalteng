@@ -1100,3 +1100,67 @@ Misi dibatalkan: Data sudah versi terbaru hari ini. Lanjut tidur zzz...
 Misi dibatalkan: Data sudah versi terbaru hari ini. Lanjut tidur zzz...
 --- Pengecekan Rutin: 2026-04-28 21:00:04.214920 ---
 Misi dibatalkan: Data sudah versi terbaru hari ini. Lanjut tidur zzz...
+INFO - 2026-04-29T01:00:13Z - Selected dataset version: "202406"
+INFO - 2026-04-29T01:00:13Z - Selected dataset part: "default"
+WARNING - 2026-04-29T01:00:13Z - Some of your subset selection [2026-04-29 00:00:00+00:00, 2026-05-08 00:00:00+00:00] for the time dimension exceed the dataset coordinates [2022-06-01 00:00:00+00:00, 2026-05-07 00:00:00+00:00]
+WARNING - 2026-04-29T01:00:13Z - Some of your subset selection [0.0, 200.0] for the depth dimension exceed the dataset coordinates [0.49402499198913574, 5727.9169921875]
+  0%|          | 0/79 [00:00<?, ?it/s]  1%|▏         | 1/79 [00:08<11:06,  8.54s/it] 13%|█▎        | 10/79 [00:08<00:43,  1.59it/s] 34%|███▍      | 27/79 [00:08<00:09,  5.35it/s] 57%|█████▋    | 45/79 [00:09<00:03, 10.28it/s] 66%|██████▌   | 52/79 [00:09<00:02, 11.43it/s] 73%|███████▎  | 58/79 [00:10<00:02,  9.99it/s]100%|██████████| 79/79 [00:10<00:00,  7.60it/s]
+{
+  "file_size": 4.64387786259542,
+  "data_transfer_size": 175.9716641221374,
+  "status": "000",
+  "message": "The request was successful."
+}
+INFO - 2026-04-29T01:00:35Z - Selected dataset version: "202406"
+INFO - 2026-04-29T01:00:35Z - Selected dataset part: "default"
+WARNING - 2026-04-29T01:00:35Z - Some of your subset selection [2026-04-29 00:00:00+00:00, 2026-05-08 00:00:00+00:00] for the time dimension exceed the dataset coordinates [2022-06-01 00:00:00+00:00, 2026-05-07 00:00:00+00:00]
+WARNING - 2026-04-29T01:00:35Z - Some of your subset selection [0.0, 200.0] for the depth dimension exceed the dataset coordinates [0.49402499198913574, 5727.9169921875]
+  0%|          | 0/158 [00:00<?, ?it/s]  1%|          | 1/158 [00:09<23:44,  9.07s/it] 13%|█▎        | 20/158 [00:09<00:45,  3.05it/s] 24%|██▍       | 38/158 [00:09<00:17,  6.72it/s] 30%|███       | 48/158 [00:18<00:41,  2.67it/s] 34%|███▍      | 54/158 [00:18<00:31,  3.34it/s] 39%|███▊      | 61/158 [00:18<00:21,  4.41it/s] 44%|████▍     | 70/158 [00:18<00:14,  6.12it/s] 47%|████▋     | 75/158 [00:19<00:13,  6.34it/s] 70%|███████   | 111/158 [00:19<00:02, 18.74it/s] 78%|███████▊  | 123/158 [00:19<00:01, 23.53it/s] 85%|████████▌ | 135/158 [00:20<00:01, 22.78it/s] 91%|█████████ | 144/158 [00:20<00:00, 21.31it/s] 96%|█████████▌| 151/158 [00:21<00:00, 15.89it/s]100%|██████████| 158/158 [00:21<00:00,  7.32it/s]
+{
+  "file_size": 9.27475572519084,
+  "data_transfer_size": 351.9433282442748,
+  "status": "000",
+  "message": "The request was successful."
+}
+INFO - 2026-04-29T01:01:09Z - Selected dataset version: "202406"
+INFO - 2026-04-29T01:01:09Z - Selected dataset part: "default"
+WARNING - 2026-04-29T01:01:09Z - Some of your subset selection [2026-04-29 00:00:00+00:00, 2026-05-08 00:00:00+00:00] for the time dimension exceed the dataset coordinates [2022-06-01 00:00:00+00:00, 2026-05-07 00:00:00+00:00]
+{
+  "file_size": 0.19111068702290077,
+  "data_transfer_size": 36.01978625954199,
+  "status": "000",
+  "message": "The request was successful."
+}
+INFO - 2026-04-29T01:01:21Z - Selected dataset version: "202406"
+INFO - 2026-04-29T01:01:21Z - Selected dataset part: "default"
+WARNING - 2026-04-29T01:01:21Z - Some of your subset selection [2026-04-29 00:00:00+00:00, 2026-05-08 00:00:00+00:00] for the time dimension exceed the dataset coordinates [2022-06-01 00:00:00+00:00, 2026-05-07 00:00:00+00:00]
+WARNING - 2026-04-29T01:01:21Z - Some of your subset selection [0.0, 200.0] for the depth dimension exceed the dataset coordinates [0.49402499198913574, 5727.9169921875]
+  0%|          | 0/79 [00:00<?, ?it/s]  1%|▏         | 1/79 [00:06<08:49,  6.78s/it] 37%|███▋      | 29/79 [00:07<00:09,  5.35it/s] 53%|█████▎    | 42/79 [00:07<00:04,  8.56it/s] 62%|██████▏   | 49/79 [00:08<00:03,  9.39it/s] 72%|███████▏  | 57/79 [00:08<00:01, 12.15it/s]100%|██████████| 79/79 [00:08<00:00,  9.63it/s]
+{
+  "file_size": 4.64387786259542,
+  "data_transfer_size": 175.9716641221374,
+  "status": "000",
+  "message": "The request was successful."
+}
+INFO - 2026-04-29T01:01:39Z - Selected dataset version: "202411"
+INFO - 2026-04-29T01:01:39Z - Selected dataset part: "default"
+{
+  "file_size": 0.735337786259542,
+  "data_transfer_size": 92.55083969465649,
+  "status": "000",
+  "message": "The request was successful."
+}
+--- Pengecekan Rutin: 2026-04-29 08:00:06.044031 ---
+Internet OK! Data Belum Update! Memulai proses download dari satelit...
+--- Memulai Update Data Otomatis (2026-04-29 s/d 2026-05-08) ---
+Menjalankan: /home/syafrizalocean/venv/bin/copernicusmarine sub...
+✅ Berhasil.
+Menjalankan: /home/syafrizalocean/venv/bin/copernicusmarine sub...
+✅ Berhasil.
+Menjalankan: /home/syafrizalocean/venv/bin/copernicusmarine sub...
+✅ Berhasil.
+Menjalankan: /home/syafrizalocean/venv/bin/copernicusmarine sub...
+✅ Berhasil.
+Menjalankan: /home/syafrizalocean/venv/bin/copernicusmarine sub...
+✅ Berhasil.
+--- Semua Data MetOcean Berhasil Diperbarui! ---
