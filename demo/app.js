@@ -417,17 +417,23 @@ async function renderActiveLayer(dayIndex) {
             url += `/${dayIndex}`;
         }
         
-        if (['suhu', 'salinitas', 'arus'].includes(activeDataType) && depthLevels.length > 1) {
+        // KUNCI ANTI-404: Selalu paksa tambahkan angka kedalaman untuk parameter 3D!
+        if (['suhu', 'salinitas', 'arus'].includes(activeDataType)) {
             if (depthContainer) depthContainer.classList.remove('hidden');
-            if (depthSlider) url += `/${depthSlider.value}`; 
+            let dIndex = depthSlider ? depthSlider.value : 0;
+            url += `/${dIndex}`; 
         } else {
             if (depthContainer) depthContainer.classList.add('hidden');
         }
 
         // --- 2. DOWNLOAD DATA DARI BACKEND ---
         const response = await fetch(url);
+        
+        // TAMENG PELINDUNG: Jika server Python error, hentikan proses agar peta tidak crash!
+        if (!response.ok) {
+            throw new Error(`Server API Menolak (Status: ${response.status}). Pastikan URL Backend menyala.`);
+        }
         const dayData = await response.json();
-
         // --- 3. LOGIKA KHUSUS BATIMETRI & SEMBUNYIKAN SLIDER ---
         let timeSliderContainer = document.getElementById('bottom-bar-container');
         
@@ -450,9 +456,6 @@ async function renderActiveLayer(dayIndex) {
         }
 
         // --- 4. RENDER KE PETA (ARUS ATAU RASTER) ---
-        
-        // --- 4. RENDER KE PETA (ARUS ATAU RASTER) ---
-        
         const conf = configs[activeDataType];
         const legendaContainer = document.getElementById('legenda-container');
         if (legendaContainer) {

@@ -115,13 +115,26 @@ def api_angin(time_index: int):
     ]
 
 # ==========================================
-# API OCEAN (HYBRID)
+# API OCEAN (HYBRID) - ANTI CRASH
 # ==========================================
+def safe_get_ocean(ds, var_name, t_idx, d_idx):
+    """Fungsi pelindung agar Python tidak crash jika Copernicus mengubah format file"""
+    # 1. Aman dari Time Index Out of Bounds (Kelebihan Jam)
+    safe_t = min(t_idx, len(ds['time']) - 1) if 'time' in ds.dims else 0
+    
+    # 2. Aman dari Depth Index Missing (Kedalaman Hilang)
+    if 'depth' in ds.dims or 'depth' in ds.coords:
+        safe_d = min(d_idx, len(ds['depth']) - 1)
+        return ds[var_name].isel(time=safe_t, depth=safe_d)
+    else:
+        # Jika file dari Copernicus tidak punya dimensi 'depth', ambil langsung waktunya
+        return ds[var_name].isel(time=safe_t)
+
 @app.get("/api/suhu/{time_index}/{depth_index}")
 def api_suhu(time_index: int, depth_index: int):
     ds = get_dataset('suhu', depth_index)
     t_idx = time_index // 24 if depth_index > 0 else time_index
-    res = convert_to_webgis_json(ds['thetao'].isel(time=t_idx, depth=depth_index))
+    res = convert_to_webgis_json(safe_get_ocean(ds, 'thetao', t_idx, depth_index))
     ds.close()
     return res
 
@@ -129,14 +142,14 @@ def api_suhu(time_index: int, depth_index: int):
 def api_salinitas(time_index: int, depth_index: int):
     ds = get_dataset('salinitas', depth_index)
     t_idx = time_index // 24 if depth_index > 0 else time_index
-    res = convert_to_webgis_json(ds['so'].isel(time=t_idx, depth=depth_index))
+    res = convert_to_webgis_json(safe_get_ocean(ds, 'so', t_idx, depth_index))
     ds.close()
     return res
 
 @app.get("/api/ssh/{time_index}")
 def api_ssh(time_index: int):
     ds = get_dataset('ssh')
-    res = convert_to_webgis_json(ds['zos'].isel(time=time_index, depth=0))
+    res = convert_to_webgis_json(safe_get_ocean(ds, 'zos', time_index, 0))
     ds.close()
     return res
 
@@ -144,7 +157,7 @@ def api_ssh(time_index: int):
 def api_gelombang(time_index: int):
     ds = get_dataset('gelombang')
     w_idx = time_index // 3 # Gelombang pakai interval 3 jam
-    res = convert_to_webgis_json(ds['VHM0'].isel(time=w_idx))
+    res = convert_to_webgis_json(safe_get_ocean(ds, 'VHM0', w_idx, 0))
     ds.close()
     return res
 
@@ -152,12 +165,14 @@ def api_gelombang(time_index: int):
 def api_arus(time_index: int, depth_index: int):
     ds = get_dataset('arus', depth_index)
     t_idx = time_index // 24 if depth_index > 0 else time_index
-    u = ds['uo'].isel(time=t_idx, depth=depth_index)
-    v = ds['vo'].isel(time=t_idx, depth=depth_index)
-    res = [convert_to_velocity_json(u, "Eastward Velocity", True), convert_to_velocity_json(v, "Northward Velocity", False)]
+    u = safe_get_ocean(ds, 'uo', t_idx, depth_index)
+    v = safe_get_ocean(ds, 'vo', t_idx, depth_index)
+    res = [
+        convert_to_velocity_json(u, "Eastward Velocity", True), 
+        convert_to_velocity_json(v, "Northward Velocity", False)
+    ]
     ds.close()
     return res
-
 # ==========================================
 # FITUR LAINNYA (BATIMETRI, PROFIL, TIME SERIES)
 # ==========================================
