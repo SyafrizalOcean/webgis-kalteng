@@ -826,67 +826,67 @@ window.buildUnifiedSidebar = async function(lat, lon, zonasiProps = null) {
             if (loadingEl) loadingEl.remove();
 
                 if (!tsData.error && tsData.values) {
-                let labelsTime = [];
-                let dataTime = [];
-                
-                // LOGIKA PEMISAH: COPERNICUS (HARIAN) VS ECMWF (JAM-JAMAN)
-                if (tsData.values.length <= 15) {
-                    // Data Copernicus (Suhu/Salinitas/Arus)
-                    for (let i = 0; i < tsData.values.length; i++) {
-                        let hourIndex = Math.min(i * 24, 239);
-                        labelsTime.push(hourlyDates[hourIndex].split(' - ')[0]); 
-                        dataTime.push(tsData.values[i]);
-                    }
-                } else {
-                    // KUNCI PERBAIKAN ECMWF: Tampilkan SEMUA titik data (64 titik) agar grafik sangat halus!
-                    let currentHour = 0;
-                    for (let i = 0; i < tsData.values.length; i++) {
-                        // Jangan biarkan index lewat dari 239 (Batas array nama hari)
-                        let safeHour = Math.min(currentHour, 239);
-                        
-                        // Tampilkan Nama Hari + Jam (Contoh: "Sel 14:00")
-                        labelsTime.push(hourlyDates[safeHour].split(' - ')[0] + " " + hourlyDates[safeHour].split(' - ')[1]);
-                        dataTime.push(tsData.values[i]);
-                        
-                        // Tambah jam sesuai resolusi ECMWF: 0-144 interval 3 jam, sisanya 6 jam
-                        if (currentHour < 144) {
-                            currentHour += 3;
-                        } else {
-                            currentHour += 6;
+                    let labelsTime = [];
+                    let dataTime = [];
+                    
+                    // 1. MASUKKAN TEKS WAKTU SECARA UTUH TERLEBIH DAHULU
+                    if (tsData.values.length <= 15) {
+                        // Data Copernicus (Suhu, Arus, Salinitas)
+                        for (let i = 0; i < tsData.values.length; i++) {
+                            let hourIndex = Math.min(i * 24, 239);
+                            labelsTime.push(hourlyDates[hourIndex]); // Biarkan utuh misal: "Rab 29 - 07:00"
+                            dataTime.push(tsData.values[i]);
+                        }
+                    } else {
+                        // Data ECMWF (Hujan, MSL, Angin)
+                        let currentHour = 0;
+                        for (let i = 0; i < tsData.values.length; i++) {
+                            let safeHour = Math.min(currentHour, 239);
+                            labelsTime.push(hourlyDates[safeHour]);
+                            dataTime.push(tsData.values[i]);
+                            
+                            if (currentHour < 144) currentHour += 3;
+                            else currentHour += 6;
                         }
                     }
-                }
 
-                // Gambar Grafiknya!
-                if(timeChartInstance) timeChartInstance.destroy();
-                timeChartInstance = new Chart(document.getElementById('chartTimeSeries').getContext('2d'), {
-                    type: 'line', 
-                    data: { labels: labelsTime, datasets: [{ label: moData.title, data: dataTime, borderColor: '#2563eb', backgroundColor: 'rgba(37, 99, 235, 0.2)', fill: true, tension: 0.4, pointRadius: 1 }] },
-                    options: { 
-                        maintainAspectRatio: false, 
-                        plugins: { legend: { display: false } }, 
-                        scales: { 
-                            x: { 
-                                ticks: { 
-                                    font: { size: 8, weight: 'bold' },
-                                    maxRotation: 0,
-                                    // KUNCI GRAFIK RAPI: Hanya tulis label jika jamnya 00:00
-                                    callback: function(val, index) {
-                                        let label = this.getLabelForValue(val);
-                                        return label.includes('00:00') ? label.split(' - ')[0] : null;
+                    // 2. GAMBAR GRAFIKNYA DENGAN PENYARINGAN SUMBU X YANG BENAR
+                    if(timeChartInstance) timeChartInstance.destroy();
+                    timeChartInstance = new Chart(document.getElementById('chartTimeSeries').getContext('2d'), {
+                        type: 'line', 
+                        data: { labels: labelsTime, datasets: [{ label: moData.title, data: dataTime, borderColor: '#2563eb', backgroundColor: 'rgba(37, 99, 235, 0.2)', fill: true, tension: 0.4, pointRadius: 1 }] },
+                        options: { 
+                            maintainAspectRatio: false, 
+                            plugins: { legend: { display: false } }, 
+                            scales: { 
+                                x: { 
+                                    ticks: { 
+                                        font: { size: 8, weight: 'bold' },
+                                        maxRotation: 0,
+                                        callback: function(val, index) {
+                                            let label = this.getLabelForValue(val);
+                                            // Jika data laut (harian), selalu tampilkan nama harinya
+                                            if (dataTime.length <= 15) {
+                                                return label.split(' - ')[0]; 
+                                            }
+                                            // Jika data cuaca (3-jaman), HANYA tampilkan nama hari jika jamnya menunjukkan "07:00" (Siklus awal harian)
+                                            if (label.includes('07:00')) {
+                                                return label.split(' - ')[0];
+                                            }
+                                            return null; // Sembunyikan jam lainnya agar tidak semut
+                                        }
+                                    },
+                                    grid: {
+                                        // Beri garis tebal sebagai pemisah antar hari
+                                        color: (ctx) => ctx.tick && ctx.tick.label ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0)'
                                     }
-                                },
-                                grid: {
-                                    // Beri garis tebal pemisah antar hari
-                                    color: (ctx) => ctx.tick && ctx.tick.label ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0)'
-                                }
-                            }, 
-                            y: { ticks: { font: { size: 8 } } } 
-                        } 
-                    }
-                });
-            }
-
+                                }, 
+                                y: { ticks: { font: { size: 8 } } } 
+                            } 
+                        }
+                    });
+                }
+                
         } catch(e) {
             console.error("Gagal memuat Time Series:", e);
             document.getElementById('chartTimeSeries').parentNode.innerHTML = '<span class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-red-500 text-xs font-bold">Gagal terhubung ke server</span>';
