@@ -297,6 +297,195 @@ def export_data_csv(lat: float, lon: float, param: str, mode: str):
     output.seek(0)
     return StreamingResponse(output, media_type="text/csv", headers={"Content-Disposition": f"attachment; filename=export_{param}.csv"})
 
+def get_hybrid_dataset(param, depth_index=0):
+    # Data 2D Atmosfer (dari file ECMWF update_udara_lokal.py)
+    if param in ['hujan', 'msl', 'angin']:
+        return xr.open_dataset("data_nc/udara_kalteng.nc") # Sesuaikan nama file ECMWF-mu
+        
+    # Data 2D Gelombang (Dari kamar Wave Copernicus)
+    if param == 'gelombang':
+        return xr.open_dataset("data_nc/gelombang_hybrid.nc")
+        
+    # Data 2D Elevasi (Dari kamar Fisik Permukaan Copernicus)
+    if param == 'ssh':
+        return xr.open_dataset("data_nc/surface_hourly.nc")
+    
+    # Data 3D Hybrid (Suhu, Salinitas, Arus)
+    if depth_index == 0:
+        return xr.open_dataset("data_nc/surface_hourly.nc") # Ambil yang Hourly
+    else:
+        return xr.open_dataset("data_nc/3d_daily.nc") # Ambil yang 3D Daily
+
+
+import math
+
+@app.get("/api/profile/{param}/{lat}/{lon}/{time_index}")
+async def get_depth_profile(param: str, lat: float, lon: float, time_index: int):
+    """API khusus untuk menggambar Grafik Profil Kedalaman saat peta diklik"""
+    
+    # Fitur ini hanya untuk data yang punya kedalaman (3D)
+    if param not in ['suhu', 'salinitas', 'arus']:
+        return {"error": "Parameter ini tidak memiliki profil kedalaman"}
+
+    # KUNCI HYBRID: 
+    # Karena slider waktu di webmu pakai Hourly (0-239), kita harus ubah ke index Daily (0-9)
+    # Contoh: Jam ke-25 (Hari ke-2) -> 25 // 24 = index 1
+    daily_time_index = time_index // 24
+
+    # Selalu buka file 3D Daily untuk mendapatkan semua kedalaman
+    ds = xr.open_dataset("data_nc/3d_daily.nc")
+    
+    try:
+        # Cari data di titik (lat, lon) yang paling dekat dengan yang diklik user
+        var_name = 'thetao' if param == 'suhu' else 'so' if param == 'salinitas' else 'uo'
+        
+        # Ekstrak data 1 kolom vertikal dari atas ke bawah
+        point_data = ds[var_name].isel(time=daily_time_index).sel(latitude=lat, longitude=lon, method="nearest")
+        
+        # Ambil daftar angka kedalaman (depth)
+        depths = point_data.depth.values.tolist()
+        values = point_data.values.tolist()
+        
+        # Buat pasangan [nilai, kedalaman] untuk dikirim ke Javascript
+        profile = []
+        for v, d in zip(values, depths):
+            if not math.isnan(v): # Abaikan kalau datanya kosong (misal nabrak dasar laut)
+                profile.append({"depth": round(d, 1), "value": round(float(v), 3)})
+                
+        ds.close()
+        return {"param": param, "lat": lat, "lon": lon, "profile": profile}
+
+    except Exception as e:
+        ds.close()
+        return {"error": str(e)}
+
+import numpy as np
+import math
+
+# --- FUNGSI PEMBANTU (Helper) ---
+# Fungsi ini untuk mengubah data NetCDF menjadi format JSON yang dimengerti app.js kamu
+def convert_to_webgis_json(data_slice):
+    # Mengambil koordinat dan nilai
+    lats = data_slice.latitude.values
+    lons = data_slice.longitude.values
+    values = data_slice.values
+    
+    # Menghitung selisih (dx/dy)
+    dx = float(abs(lons[1] - lons[0])) if len(lons) > 1 else 0.083
+    dy = float(abs(lats[1] - lats[0])) if len(lats) > 1 else 0.083
+    
+    # Membersihkan nilai NaN agar tidak error di JSON
+    cleaned_values = [None if np.isnan(v) else float(v) for v in values.flatten()]
+    
+    return {
+        "nx": len(lons),
+        "ny": len(lats),
+        "lo1": float(lons[0]),
+        "la1": float(lats[0]),
+        "dx": dx,
+        "dy": dy,
+        "zs": cleaned_values
+    }
+
+def convert_to_velocity_json(data_slice, param_name):
+    lats = data_slice.latitude.values
+    lons = data_slice.longitude.values
+    values = [0 if np.isnan(v) else float(v) for v in data_slice.values.flatten()]
+    
+    return {
+        "header": {
+            "nx": len(lons), "ny": len(lats),
+            "lo1": float(lons[0]), "la1": float(lats[0]),
+            "dx": 0.083, "dy": 0.083,
+            "parameterName": param_name
+        },
+        "data": values
+    }
+
+# --- ENDPOINT API METOCEAN ---
+
+# 1. Parameter 3D: Suhu & Salinitas
+@app.get("/api/suhu/{time_index}/{depth_index}")
+async def get_suhu(time_index: int, depth_index: int):
+    ds = get_dataset('suhu', depth_index)
+    # thetao adalah nama variabel Suhu di Copernicus
+    data_slice = ds['thetao'].isel(time=time_index, depth=depth_index)
+    res = convert_to_webgis_json(data_slice)
+    ds.close()
+    return res
+
+@app.get("/api/salinitas/{time_index}/{depth_index}")
+async def get_salinitas(time_index: int, depth_index: int):
+    ds = get_dataset('salinitas', depth_index)
+    # so adalah nama variabel Salinitas di Copernicus
+    data_slice = ds['so'].isel(time=time_index, depth=depth_index)
+    res = convert_to_webgis_json(data_slice)
+    ds.close()
+    return res
+
+# 2. Parameter 2D: Elevasi (SSH) & Gelombang
+@app.get("/api/ssh/{time_index}")
+async def get_ssh(time_index: int):
+    # SSH hanya ada di file Hourly permukaan
+    ds = get_dataset('ssh')
+    data_slice = ds['zos'].isel(time=time_index, depth=0)
+    res = convert_to_webgis_json(data_slice)
+    ds.close()
+    return res
+
+@app.get("/api/gelombang/{time_index}")
+async def get_gelombang(time_index: int):
+    ds = get_dataset('gelombang')
+    # VHM0 adalah nama variabel Tinggi Gelombang
+    data_slice = ds['VHM0'].isel(time=time_index)
+    res = convert_to_webgis_json(data_slice)
+    ds.close()
+    return res
+
+# 3. Arus Laut (Hybrid Vector)
+@app.get("/api/arus/{time_index}/{depth_index}")
+async def get_arus(time_index: int, depth_index: int):
+    ds = get_dataset('arus', depth_index)
+    u_slice = ds['uo'].isel(time=time_index, depth=depth_index)
+    v_slice = ds['vo'].isel(time=time_index, depth=depth_index)
+    
+    res = [
+        convert_to_velocity_json(u_slice, "Eastward Velocity"),
+        convert_to_velocity_json(v_slice, "Northward Velocity")
+    ]
+    ds.close()
+    return res
+
+# --- 4. FITUR JAGOAN: PROFIL KEDALAMAN (DEPTH PROFILE) ---
+@app.get("/api/profile/{param}/{lat}/{lon}/{time_index}")
+async def get_depth_profile(param: str, lat: float, lon: float, time_index: int):
+    # Selalu buka file 3D Daily agar dapat profil dari permukaan sampai dasar
+    ds = xr.open_dataset("data_nc/3d_daily.nc")
+    
+    # Konversi time_index Hourly (0-239) ke Daily (0-9)
+    daily_idx = time_index // 24
+    
+    var_name = 'thetao' if param == 'suhu' else 'so' if param == 'salinitas' else 'uo'
+    
+    try:
+        # Mengambil satu kolom vertikal (depth) di koordinat terdekat
+        point_data = ds[var_name].isel(time=daily_idx).sel(latitude=lat, longitude=lon, method="nearest")
+        
+        depths = point_data.depth.values.tolist()
+        values = point_data.values.tolist()
+        
+        # Susun data untuk dikirim ke chartDepth di app.js
+        profile_data = []
+        for d, v in zip(depths, values):
+            if not math.isnan(v):
+                profile_data.append({"depth": round(float(d), 2), "value": round(float(v), 3)})
+        
+        ds.close()
+        return {"profile": profile_data}
+    except Exception as e:
+        ds.close()
+        return {"error": str(e)}
+
 @app.get("/api/tide")
 def get_tide_srgi(station_code: str):
     session = requests.Session()

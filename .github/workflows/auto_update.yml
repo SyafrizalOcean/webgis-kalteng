@@ -23,8 +23,10 @@ jobs:
         run: |
           pip install xarray ecmwf-opendata cfgrib netCDF4 copernicusmarine 
 
-      - name: Mulai Download Data Cuaca (ECMWF)
-        run: python update_udara_lokal.py
+      - name: Jalankan Downloader Hybrid
+        run: |
+          python update_udara_lokal.py
+          python update_data_hybrid.py
 
       # TUGAS BARU: Suruh robot download data laut juga!
       - name: Mulai Download Data Laut (Copernicus)

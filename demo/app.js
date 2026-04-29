@@ -3,6 +3,7 @@
 // ==========================================
 const topBarContent = document.getElementById('top-bar-content');
 const toggleTopBtn = document.getElementById('toggle-top-bar');
+
 toggleTopBtn.addEventListener('click', () => { 
     topBarContent.classList.toggle('-translate-y-full'); 
     toggleTopBtn.querySelector('svg').classList.toggle('rotate-180'); 
@@ -106,10 +107,10 @@ const configs = {
     },
     gelombang: { 
         title: "Tinggi Gelombang (m)", 
-        // Warna biru laut yang lebih kontras, batas domain diubah ke 1.5m agar riak kecil tetap terlihat
-        scale: chroma.scale(['#e0f3db', '#a8ddb5', '#4eb3d3', '#2b8cbe', '#08589e']).domain([0, 1.5]), 
-        min: "0 m", max: ">1.5 m", 
-        css: "linear-gradient(to right, #e0f3db, #a8ddb5, #4eb3d3, #2b8cbe, #08589e)" 
+        // Skala warna baru: Putih(0m) -> Cyan(0.3m) -> Biru(0.6m) -> Biru Tua(0.9m) -> Ungu(>1.2m)
+        scale: chroma.scale(['#ffffff', '#00d4ff', '#0055ff', '#0000cc', '#800080']).domain([0, 1.2]), 
+        min: "0 m", max: ">1.2 m", 
+        css: "linear-gradient(to right, #ffffff, #00d4ff, #0055ff, #0000cc, #800080)" 
     },
     salinitas: { 
         title: "Salinitas Air Laut", 
@@ -126,9 +127,9 @@ const configs = {
     },
     hujan: { 
         title: "Curah Hujan (mm)", 
-        scale: chroma.scale(['#ffffff', '#c7e9b4', '#7fcdbb', '#41b6c4', '#1d91c0', '#225ea8', '#0c2c84']).domain([0, 50]), 
+        scale: chroma.scale(['#ffffff', '#68a5ef', '#428de8', '#195ce3', '#0e5d7c', '#0b3e7b', '#061d5d']).domain([0, 50]), 
         min: "0 mm", max: ">50 mm", 
-        css: "linear-gradient(to right, #ffffff, #c7e9b4, #7fcdbb, #41b6c4, #1d91c0, #225ea8, #0c2c84)" 
+        css: "linear-gradient(to right, #ffffff, #68a5ef, #428de8, #195ce3, #0e5d7c, #0b3e7b, #061d5d)" 
     },
     msl: { 
         title: "Tekanan Udara (MSLP)", 
@@ -946,27 +947,34 @@ window.buildUnifiedSidebar = async function(lat, lon, zonasiProps = null) {
                     let labelsTime = [];
                     let dataTime = [];
                     
-                    // 1. PENYELARASAN TITIK DATA AGAR TIDAK NUMPUK (SIMETRIS)
-                    if (tsData.values.length <= 15) {
-                        // Data Copernicus (Suhu, Arus, Salinitas, Gelombang) - 1 titik per hari
-                        for (let i = 0; i < tsData.values.length; i++) {
+                 // 1. PENYELARASAN TITIK DATA AGAR TIDAK NUMPUK (SIMETRIS HYBRID)
+                    let dataLength = tsData.values.length; // Deteksi otomatis jumlah data dari Python
+
+                    if (dataLength <= 15) {
+                        // SKENARIO A: DATA KEDALAMAN (DAILY) - Cuma 10 Titik
+                        // (Merespon jika user menggeser slider kedalaman)
+                        for (let i = 0; i < dataLength; i++) {
                             let hourIndex = Math.min(i * 24, 239);
                             labelsTime.push(hourlyDates[hourIndex]);
                             dataTime.push(tsData.values[i]);
                         }
+                    } else if (dataLength === 240) {
+                        // SKENARIO B: DATA PERMUKAAN (HOURLY) - Full 240 Titik
+                        // (Merespon saat user klik peta di kedalaman 0m)
+                        for (let i = 0; i < 240; i++) {
+                            labelsTime.push(hourlyDates[i]);
+                            dataTime.push(tsData.values[i]);
+                        }
                     } else {
-                        // Data ECMWF (Hujan, MSL, Angin)
-                        // KUNCI PERBAIKAN: Kita paksa bikin 81 titik (interval 3 jam FIX) dari hari 1 sampai 10
+                        // SKENARIO C: DATA ECMWF (Angin, MSL, Hujan) - 81 Titik
                         for (let h = 0; h <= 240; h += 3) {
                             let safeHour = Math.min(h, 239);
                             labelsTime.push(hourlyDates[safeHour]);
 
                             if (h <= 144) {
-                                // Hari 1-6 (Data asli 3 jam sekali)
                                 let idx = h / 3;
                                 dataTime.push(tsData.values[idx]);
                             } else {
-                                // Hari 7-10 (Data asli 6 jam sekali, kita duplikat agar grafiknya tetap lebar & simetris!)
                                 let diff = h - 144;
                                 let step6_idx = Math.floor((diff + 3) / 6);
                                 let actual_idx = 48 + step6_idx;
@@ -980,7 +988,7 @@ window.buildUnifiedSidebar = async function(lat, lon, zonasiProps = null) {
                     if(timeChartInstance) timeChartInstance.destroy();
                     timeChartInstance = new Chart(document.getElementById('chartTimeSeries').getContext('2d'), {
                         type: 'line', 
-                        data: { labels: labelsTime, datasets: [{ label: moData.title, data: dataTime, borderColor: '#2563eb', backgroundColor: 'rgba(37, 99, 235, 0.2)', fill: true, tension: 0.4, pointRadius: 1 }] },
+                        data: { labels: labelsTime, datasets: [{ label: moData.title, data: dataTime, borderColor: '#2563eb', backgroundColor: 'rgba(37, 99, 235, 0.2)', fill: true, tension: 0.4, pointRadius: dataLength === 240 ? 0 : 2 }] },
                         options: { 
                             maintainAspectRatio: false, 
                             plugins: { legend: { display: false } }, 
@@ -992,20 +1000,17 @@ window.buildUnifiedSidebar = async function(lat, lon, zonasiProps = null) {
                                         autoSkip: false, // KUNCI: JANGAN LONCATI TITIK
                                         callback: function(val, index) {
                                             let label = this.getLabelForValue(val);
-                                            // Copernicus: Selalu tampilkan teks hari
-                                            if (dataTime.length <= 15) {
-                                                return label.split(' - ')[0]; 
-                                            }
-                                            // ECMWF: Hanya cetak teks hari saat jam 07:00 pagi WIB
-                                            if (label.includes('07:00')) {
-                                                return label.split(' - ')[0];
-                                            }
-                                            // Sembunyikan jam sisanya dengan teks kosong, BUKAN null
-                                            return ""; 
+                                            // Jika data Daily, langsung tampilkan nama hari
+                                            if (dataLength <= 15) return label.split(' - ')[0]; 
+                                            
+                                            // Jika Hourly (240) atau ECMWF (81), cegah teks menumpuk:
+                                            // Hanya cetak teks hari saat jam 07:00 pagi WIB
+                                            if (label.includes('07:00')) return label.split(' - ')[0];
+                                            
+                                            return ""; // Sembunyikan jam sisanya
                                         }
                                     },
                                     grid: {
-                                        // Garis tegak lurus hanya muncul pas di atas teks nama hari
                                         color: (ctx) => ctx.tick && ctx.tick.label !== "" ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0)'
                                     }
                                 }, 
@@ -1020,25 +1025,56 @@ window.buildUnifiedSidebar = async function(lat, lon, zonasiProps = null) {
             document.getElementById('chartTimeSeries').parentNode.innerHTML = '<span class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-red-500 text-xs font-bold">Gagal terhubung ke server</span>';
         }
 
-        // --- D. FETCH API & GAMBAR GRAFIK KEDALAMAN (HANYA UNTUK DATA 3D) ---
+// --- D. FETCH API & GAMBAR GRAFIK KEDALAMAN (HANYA UNTUK DATA 3D) ---
         if (['suhu', 'salinitas', 'arus'].includes(moData.type)) {
             try {
-                const response = await fetch(`https://api-webgis-kalteng.onrender.com/api/profile?lat=${lat}&lon=${lon}&param=${moData.type}&time_index=${currentSliderIndex}`);
+                // KUNCI PERBAIKAN 1: URL disesuaikan dengan format API Python yang baru (pakai garis miring, bukan tanda tanya)
+                const response = await fetch(`https://api-webgis-kalteng.onrender.com/api/profile/${moData.type}/${lat}/${lon}/${currentSliderIndex}`);
                 const realData = await response.json();
 
                 document.getElementById('loading-depth').classList.add('hidden');
                 const canvasDepth = document.getElementById('chartDepth');
                 canvasDepth.classList.remove('hidden');
 
-                if(typeof depthChartInstance !== 'undefined' && depthChartInstance) depthChartInstance.destroy();
-                window.depthChartInstance = new Chart(canvasDepth.getContext('2d'), {
-                    type: 'line', 
-                    data: { labels: realData.depths.map(d => d + 'm'), datasets: [{ label: moData.title, data: realData.values, borderColor: '#0000ff', backgroundColor: '#0000ff', fill: false, tension: 0.1, pointRadius: 3, pointHoverRadius: 6 }] },
-                    options: { maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { position: 'top', title: { display: true, text: `Nilai Parameter`, font: {size: 9, weight: 'bold'} }, ticks: { font: { size: 9 } } }, y: { reverse: false, title: { display: true, text: 'Kedalaman (m)', font: {size: 9, weight: 'bold'} }, ticks: { font: { size: 9 } } } } } 
-                });
+                // KUNCI PERBAIKAN 2: Ekstrak array 'profile' dari Python menjadi sumbu X (Label Kedalaman) dan sumbu Y (Nilai)
+                if (realData.profile && realData.profile.length > 0) {
+                    let depthLabels = realData.profile.map(item => item.depth + 'm');
+                    let parameterValues = realData.profile.map(item => item.value);
+
+                    if(typeof depthChartInstance !== 'undefined' && depthChartInstance) depthChartInstance.destroy();
+                    window.depthChartInstance = new Chart(canvasDepth.getContext('2d'), {
+                        type: 'line', 
+                        data: { 
+                            labels: depthLabels, 
+                            datasets: [{ 
+                                label: moData.title, 
+                                data: parameterValues, 
+                                borderColor: '#0000ff', 
+                                backgroundColor: '#0000ff', 
+                                fill: false, 
+                                tension: 0.1, 
+                                pointRadius: 3, 
+                                pointHoverRadius: 6 
+                            }] 
+                        },
+                        options: { 
+                            maintainAspectRatio: false, 
+                            indexAxis: 'y', // Memutar grafik agar kedalaman memanjang ke bawah
+                            plugins: { legend: { display: false } }, 
+                            scales: { 
+                                x: { position: 'top', title: { display: true, text: `Nilai Parameter`, font: {size: 9, weight: 'bold'} }, ticks: { font: { size: 9 } } }, 
+                                y: { reverse: true, title: { display: true, text: 'Kedalaman (m)', font: {size: 9, weight: 'bold'} }, ticks: { font: { size: 9 } } } 
+                            } 
+                        } 
+                    });
+                } else {
+                    document.getElementById('loading-depth').innerHTML = `<span class="text-gray-500 text-xs">Data profil tidak tersedia.</span>`;
+                    document.getElementById('loading-depth').classList.remove('hidden');
+                }
             } catch (error) {
                 console.error("Gagal menarik data dari server Python:", error);
                 document.getElementById('loading-depth').innerHTML = `<span class="text-red-500">Gagal mengambil data dari server.</span>`;
+                document.getElementById('loading-depth').classList.remove('hidden');
             }
         }
     }
