@@ -99,21 +99,6 @@ def get_vector_data(ds_u, ds_v, time_index, depth_index=None):
 @app.get("/api/depths")
 def get_depths(): return {"depths": [round(float(d), 1) for d in ds_suhu['depth'].values.tolist()]} if 'depth' in ds_suhu.dims else {"depths": [0.0]}
 
-@app.get("/api/suhu/{time_index}/{depth_index}")
-def api_suhu(time_index: int, depth_index: int): return get_grid_data(ds_suhu, time_index, depth_index)
-
-@app.get("/api/salinitas/{time_index}/{depth_index}")
-def api_salinitas(time_index: int, depth_index: int): return get_grid_data(ds_salinitas, time_index, depth_index)
-
-@app.get("/api/gelombang/{time_index}")
-def api_gelombang(time_index: int): return get_grid_data(ds_gelombang, time_index)
-
-@app.get("/api/ssh/{time_index}")
-def api_ssh(time_index: int): return get_grid_data(ds_ssh, time_index)
-
-@app.get("/api/arus/{time_index}/{depth_index}")
-def api_arus(time_index: int, depth_index: int): return get_vector_data(ds_arus, ds_arus, time_index, depth_index)
-
 @app.get("/api/msl/{time_index}")
 def api_msl(time_index: int):
     data = get_grid_data(ds_msl, time_index)
@@ -297,20 +282,16 @@ def export_data_csv(lat: float, lon: float, param: str, mode: str):
     output.seek(0)
     return StreamingResponse(output, media_type="text/csv", headers={"Content-Disposition": f"attachment; filename=export_{param}.csv"})
 
-def get_hybrid_dataset(param, depth_index=0):
-    # Data 2D Atmosfer (dari file ECMWF update_udara_lokal.py)
-    if param in ['hujan', 'msl', 'angin']:
-        return xr.open_dataset("data_nc/udara_kalteng.nc") # Sesuaikan nama file ECMWF-mu
-        
-    # Data 2D Gelombang (Dari kamar Wave Copernicus)
+def get_dataset(param, depth_index=0):
+    # 1. Kelompok Gelombang (Dari kamar Wave Copernicus)
     if param == 'gelombang':
         return xr.open_dataset("data_nc/gelombang_hybrid.nc")
         
-    # Data 2D Elevasi (Dari kamar Fisik Permukaan Copernicus)
+    # 2. Kelompok Elevasi (Hanya ada di permukaan Hourly)
     if param == 'ssh':
         return xr.open_dataset("data_nc/surface_hourly.nc")
     
-    # Data 3D Hybrid (Suhu, Salinitas, Arus)
+    # 3. Kelompok 3D Hybrid (Suhu, Salinitas, Arus)
     if depth_index == 0:
         return xr.open_dataset("data_nc/surface_hourly.nc") # Ambil yang Hourly
     else:

@@ -28,10 +28,6 @@ jobs:
           python update_udara_lokal.py
           python update_data_hybrid.py
 
-      # TUGAS BARU: Suruh robot download data laut juga!
-      - name: Mulai Download Data Laut (Copernicus)
-        run: python update_data.py
-
       - name: Simpan & Kirim ke Server
         run: |
           git config --global user.name "Robot ITB"
