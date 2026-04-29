@@ -448,7 +448,8 @@ async function renderActiveLayer(dayIndex) {
 
         // --- 4. RENDER KE PETA (ARUS ATAU RASTER) ---
         
-        // KUNCI UTAMA: Tampilkan dan isi Legenda untuk SEMUA parameter tanpa terkecuali di awal!
+        // --- 4. RENDER KE PETA (ARUS ATAU RASTER) ---
+        
         const conf = configs[activeDataType];
         const legendaContainer = document.getElementById('legenda-container');
         if (legendaContainer) {
@@ -458,20 +459,22 @@ async function renderActiveLayer(dayIndex) {
             document.getElementById('legenda-max').textContent = conf.max;
         }
 
-        if (activeDataType === 'arus' || activeDataType === 'angin') {
-            let isAngin = (activeDataType === 'angin');
-            
-            // Palet warna rahasia "Turbo Colormap" untuk Arus & Angin
-            const windyColormap = [
-                "#30123b", "#4662d7", "#36aaf9", "#1ae4b6", "#72fe5e", 
-                "#c8ef34", "#faba39", "#f66b19", "#cb2a04", "#7a0403"
-            ];
+        const windyColormap = [
+            "#30123b", "#4662d7", "#36aaf9", "#1ae4b6", "#72fe5e", 
+            "#c8ef34", "#faba39", "#f66b19", "#cb2a04", "#7a0403"
+        ];
 
+        // TAHAP 4A: RENDER DATA UTAMA (BASE LAYER)
+        if (activeDataType === 'arus' || activeDataType === 'angin') {
+            // KUNCI PERBAIKAN BUG: Hapus sisa memori kotak-kotak sebelumnya agar kursor tidak salah baca (error param)!
+            window.currentGridData = null; 
+            
+            let isAngin = (activeDataType === 'angin');
             velocityLayer = L.velocityLayer({
                 displayValues: true, 
                 displayOptions: { 
                     velocityType: isAngin ? 'Angin 10m' : 'Arus Laut', 
-                    position: 'bottomleft', 
+                    position: 'bottomleft', // Info kecepatan akan muncul di pojok kiri bawah peta
                     speedUnit: 'm/s' 
                 },
                 data: dayData, 
@@ -479,9 +482,9 @@ async function renderActiveLayer(dayIndex) {
                 velocityScale: isAngin ? 0.005 : 0.1,
                 colorScale: windyColormap 
             }).addTo(map);
-            
+
         } else {
-            // Render raster warna kotak-kotak (Suhu, Batimetri, dsb)
+            // Render raster warna kotak-kotak (Suhu, Batimetri, MSL, Salinitas, dsb)
             const nx = dayData.nx, ny = dayData.ny;
             const lo1 = dayData.lo1, la1 = dayData.la1;
             const dx = dayData.dx, dy = dayData.dy;
@@ -507,13 +510,49 @@ async function renderActiveLayer(dayIndex) {
                             interactive: true
                         });
                         
-                        // Titipkan data ke dalam kotak ini (untuk radar klik)
                         rect.metoceanVal = val;
                         rect.metoceanTitle = conf.title;
-                        
                         rect.addTo(activeRasterGroup);
                     }
                 }
+            }
+        }
+
+        // TAHAP 4B: EFEK OVERLAY PARTIKEL (WINDY.COM CLONE)
+        // Tentukan siapa yang butuh hiasan arus, dan siapa yang butuh hiasan angin
+        let needsArusOverlay = ['suhu', 'salinitas', 'ssh'].includes(activeDataType);
+        let needsAnginOverlay = ['msl', 'hujan'].includes(activeDataType);
+
+        if (needsArusOverlay || needsAnginOverlay) {
+            try {
+                let overlayUrl = '';
+                if (needsArusOverlay) {
+                    overlayUrl = `https://api-webgis-kalteng.onrender.com/api/arus/${dayIndex}`;
+                    // Jika ada slider kedalaman, pastikan partikel arus mengikuti kedalaman yang dipilih!
+                    if (depthSlider && !depthContainer.classList.contains('hidden')) {
+                        overlayUrl += `/${depthSlider.value}`; 
+                    }
+                } else {
+                    overlayUrl = `https://api-webgis-kalteng.onrender.com/api/angin/${dayIndex}`;
+                }
+
+                // Download data partikel secara diam-diam di latar belakang
+                const overlayRes = await fetch(overlayUrl);
+                const overlayData = await overlayRes.json();
+
+                // Timpa animasi transparan ke atas peta kotak-kotak
+                velocityLayer = L.velocityLayer({
+                    displayValues: false, // Matikan teks pojok kiri bawah agar tidak tabrakan dengan data utama
+                    interactive: false,   // Pastikan kursor tetap bisa menembus klik ke kotak Suhu/MSL di bawahnya
+                    data: overlayData, 
+                    maxVelocity: needsAnginOverlay ? 15.0 : 0.8,
+                    velocityScale: needsAnginOverlay ? 0.005 : 0.1,
+                    // KUNCI ESTETIKA: Gunakan warna Putih Transparan (bukan warna-warni) agar terlihat elegan seperti awan/arus air murni
+                    colorScale: ["rgba(255,255,255,0.4)", "rgba(255,255,255,0.9)"] 
+                }).addTo(map);
+
+            } catch (overlayErr) {
+                console.log("Info: Gagal memuat animasi penghias latar belakang", overlayErr);
             }
         }
         
