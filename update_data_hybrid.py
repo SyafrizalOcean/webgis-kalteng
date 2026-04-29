@@ -3,7 +3,7 @@ import xarray as xr
 import os
 
 os.makedirs("data_nc", exist_ok=True)
-CONF = {"username": "USER_KAMU", "password": "PWD_KAMU"}
+CONF = {"username": "hidayatsyafrizal@gmail.com", "password": "Selat040413"}
 
 def download_hybrid():
     # 1. DOWNLOAD HOURLY (PERMUKAAN) - Suhu, Salinitas, Arus, Elevasi
