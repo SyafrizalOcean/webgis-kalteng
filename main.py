@@ -44,6 +44,10 @@ def get_dataset(param, depth_index=0):
     return xr.open_dataset("data_nc/3d_daily.nc")
 
 def convert_to_webgis_json(data_slice):
+    # KUNCI PERBAIKAN: Putar Latitude dari Utara ke Selatan agar tidak tergambar di Antartika!
+    if data_slice.latitude.values[0] < data_slice.latitude.values[-1]:
+        data_slice = data_slice.sortby('latitude', ascending=False)
+        
     lats, lons = data_slice.latitude.values, data_slice.longitude.values
     dx = float(abs(lons[1] - lons[0])) if len(lons) > 1 else 0.083
     dy = float(abs(lats[1] - lats[0])) if len(lats) > 1 else 0.083
@@ -55,6 +59,10 @@ def convert_to_webgis_json(data_slice):
     }
 
 def convert_to_velocity_json(data_slice, param_name, is_u):
+    # KUNCI PERBAIKAN: Putar Latitude dari Utara ke Selatan untuk data Arus Laut
+    if data_slice.latitude.values[0] < data_slice.latitude.values[-1]:
+        data_slice = data_slice.sortby('latitude', ascending=False)
+        
     lats, lons = data_slice.latitude.values, data_slice.longitude.values
     dx = float(abs(lons[1] - lons[0])) if len(lons) > 1 else 0.083
     dy = float(abs(lats[1] - lats[0])) if len(lats) > 1 else 0.083
