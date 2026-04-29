@@ -10,10 +10,15 @@ CONF = {"username": "shidayat4", "password": "Selat040413@"}
 
 def download_hybrid():
     start_date = datetime.utcnow().strftime("%Y-%m-%d 00:00:00")
-    # Perbaikan Warning Time Exceed: Paskan di jam 00:00:00 agar tidak melebihi batas
     end_date = (datetime.utcnow() + timedelta(days=9)).strftime("%Y-%m-%d 00:00:00")
     
     print(f"Mendownload data MetOcean dari {start_date} sampai {end_date}...")
+
+    # KORDINAT DISAMAKAN DENGAN DATA ECMWF / BATIMETRI
+    MIN_LON = 109.0
+    MAX_LON = 116.0
+    MIN_LAT = -6.0
+    MAX_LAT = -0.5
 
     # 1. DOWNLOAD HOURLY (PERMUKAAN)
     print("📥 Downloading Hourly Surface Data...")
@@ -22,8 +27,8 @@ def download_hybrid():
     cm.subset(
         dataset_id="cmems_mod_glo_phy_anfc_0.083deg_PT1H-m",
         variables=["thetao", "so", "uo", "vo", "zos"],
-        minimum_longitude=108.0, maximum_longitude=117.0,
-        minimum_latitude=-7.0, maximum_latitude=1.0,
+        minimum_longitude=MIN_LON, maximum_longitude=MAX_LON,
+        minimum_latitude=MIN_LAT, maximum_latitude=MAX_LAT,
         minimum_depth=0.4, maximum_depth=0.5, 
         start_datetime=start_date,
         end_datetime=end_date,     
@@ -31,14 +36,14 @@ def download_hybrid():
         **CONF, overwrite=True 
     )
 
-    # 2. DOWNLOAD DAILY 3D (KARENA DIPISAH COPERNICUS, KITA DOWNLOAD 1-1)
+    # 2. DOWNLOAD DAILY 3D (DIPISAH LALU DIGABUNG OLEH XARRAY)
     print("📥 Downloading Daily 3D Data (Suhu)...")
     if os.path.exists("data_nc/3d_thetao.nc"): os.remove("data_nc/3d_thetao.nc")
     cm.subset(
         dataset_id="cmems_mod_glo_phy-thetao_anfc_0.083deg_P1D-m", 
         variables=["thetao"],
-        minimum_longitude=108.0, maximum_longitude=117.0,
-        minimum_latitude=-7.0, maximum_latitude=1.0,
+        minimum_longitude=MIN_LON, maximum_longitude=MAX_LON,
+        minimum_latitude=MIN_LAT, maximum_latitude=MAX_LAT,
         minimum_depth=0.0, maximum_depth=93.0,
         start_datetime=start_date, end_datetime=end_date,
         output_filename="data_nc/3d_thetao.nc",
@@ -50,8 +55,8 @@ def download_hybrid():
     cm.subset(
         dataset_id="cmems_mod_glo_phy-so_anfc_0.083deg_P1D-m", 
         variables=["so"],
-        minimum_longitude=108.0, maximum_longitude=117.0,
-        minimum_latitude=-7.0, maximum_latitude=1.0,
+        minimum_longitude=MIN_LON, maximum_longitude=MAX_LON,
+        minimum_latitude=MIN_LAT, maximum_latitude=MAX_LAT,
         minimum_depth=0.0, maximum_depth=93.0,
         start_datetime=start_date, end_datetime=end_date,
         output_filename="data_nc/3d_so.nc",
@@ -63,8 +68,8 @@ def download_hybrid():
     cm.subset(
         dataset_id="cmems_mod_glo_phy-cur_anfc_0.083deg_P1D-m", 
         variables=["uo", "vo"],
-        minimum_longitude=108.0, maximum_longitude=117.0,
-        minimum_latitude=-7.0, maximum_latitude=1.0,
+        minimum_longitude=MIN_LON, maximum_longitude=MAX_LON,
+        minimum_latitude=MIN_LAT, maximum_latitude=MAX_LAT,
         minimum_depth=0.0, maximum_depth=93.0,
         start_datetime=start_date, end_datetime=end_date,
         output_filename="data_nc/3d_cur.nc",
@@ -77,7 +82,6 @@ def download_hybrid():
         ds_s = xr.open_dataset('data_nc/3d_so.nc')
         ds_c = xr.open_dataset('data_nc/3d_cur.nc')
         
-        # Gabungkan secara paksa agar tidak error walau ada beda desimal mikroskopis di koordinat satelit
         ds_merged = xr.merge([ds_t, ds_s, ds_c], compat='override')
         
         if os.path.exists("data_nc/3d_daily.nc"): os.remove("data_nc/3d_daily.nc")
@@ -87,7 +91,6 @@ def download_hybrid():
         ds_s.close()
         ds_c.close()
         
-        # Bersihkan file pecahan agar memori GitHub aman
         os.remove("data_nc/3d_thetao.nc")
         os.remove("data_nc/3d_so.nc")
         os.remove("data_nc/3d_cur.nc")
@@ -102,8 +105,8 @@ def download_hybrid():
     cm.subset(
         dataset_id="cmems_mod_glo_wav_anfc_0.083deg_PT3H-i",
         variables=["VHM0"], 
-        minimum_longitude=108.0, maximum_longitude=117.0,
-        minimum_latitude=-7.0, maximum_latitude=1.0,
+        minimum_longitude=MIN_LON, maximum_longitude=MAX_LON,
+        minimum_latitude=MIN_LAT, maximum_latitude=MAX_LAT,
         start_datetime=start_date,
         end_datetime=end_date,
         output_filename="data_nc/gelombang_hybrid.nc",
