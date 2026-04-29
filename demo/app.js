@@ -411,6 +411,21 @@ async function renderActiveLayer(dayIndex) {
         if (activeDataType === 'arus' || activeDataType === 'angin') {
             document.getElementById('legenda-container').classList.add('hidden');
             let isAngin = (activeDataType === 'angin');
+            
+            // KUNCI ESTETIKA WINDY.COM: Palet warna "Turbo Colormap" (Sangat kaya warna)
+            const windyColormap = [
+                "#30123b", // Sangat Lambat (Ungu Gelap)
+                "#4662d7", // Biru
+                "#36aaf9", // Cyan/Biru Muda
+                "#1ae4b6", // Hijau Tosca
+                "#72fe5e", // Hijau Terang
+                "#c8ef34", // Kuning Kehijauan
+                "#faba39", // Kuning Emas
+                "#f66b19", // Oranye
+                "#cb2a04", // Merah
+                "#7a0403"  // Sangat Kencang (Merah Gelap/Maroon)
+            ];
+
             velocityLayer = L.velocityLayer({
                 displayValues: true, 
                 displayOptions: { 
@@ -419,9 +434,11 @@ async function renderActiveLayer(dayIndex) {
                     speedUnit: 'm/s' 
                 },
                 data: dayData, 
+                // Batas maksimal kecepatan agar warnanya menyebar merata (Arus maks 0.8 m/s, Angin 15 m/s)
                 maxVelocity: isAngin ? 15.0 : 0.8,
                 velocityScale: isAngin ? 0.005 : 0.1,
-                colorScale: isAngin ? ["#ffffb2", "#fd8d3c", "#f03b20", "#bd0026"] : ["#ffffff", "#e0e0e0"]
+                // Terapkan warna canggih di sini!
+                colorScale: windyColormap 
             }).addTo(map);
         } else {
             // Render raster warna (Suhu, Batimetri, dsb)
