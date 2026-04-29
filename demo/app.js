@@ -1064,7 +1064,7 @@ window.buildUnifiedSidebar = async function(lat, lon, zonasiProps = null) {
                             plugins: { legend: { display: false } }, 
                             scales: { 
                                 x: { position: 'top', title: { display: true, text: `Nilai Parameter`, font: {size: 9, weight: 'bold'} }, ticks: { font: { size: 9 } } }, 
-                                y: { reverse: true, title: { display: true, text: 'Kedalaman (m)', font: {size: 9, weight: 'bold'} }, ticks: { font: { size: 9 } } } 
+                                y: { reverse: false, title: { display: true, text: 'Kedalaman (m)', font: {size: 9, weight: 'bold'} }, ticks: { font: { size: 9 } } } 
                             } 
                         } 
                     });
