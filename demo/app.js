@@ -98,20 +98,59 @@ let currentMetOceanLayer = null; // Untuk kontrol single-select (Rule 2)
 let uploadedShpLayers = []; // Wadah untuk menampung semua SHP yang di-upload user
 
 const configs = {
-    suhu: { title: "Suhu Air Laut ", scale: chroma.scale(['blue', 'cyan', 'lime', 'yellow', 'red']).domain([27, 32]), min: "27°C", max: "32°C", css: "linear-gradient(to right, blue, cyan, lime, yellow, red)" },
-    gelombang: { title: "Tinggi Gelombang (m)", scale: chroma.scale(['#e0f3db', '#43a2ca', '#0868ac']).domain([0, 2]), min: "0m", max: ">2m", css: "linear-gradient(to right, #e0f3db, #43a2ca, #0868ac)" },
-    salinitas: { title: "Salinitas Air Laut ", scale: chroma.scale(['#ffffe5', '#41ab5d', '#004529']).domain([25, 35]), min: "25 PSU", max: "35 PSU", css: "linear-gradient(to right, #ffffe5, #41ab5d, #004529)" },
-    ssh: { title: "Elevasi Muka Air (SSH)", scale: chroma.scale(['#d53e4f', '#ffffbf', '#3288bd']).domain([-0.5, 0.5]), min: "-0.5m", max: "+0.5m", css: "linear-gradient(to right, #d53e4f, #ffffbf, #3288bd)" },
-    arus: { title: "Arus Laut " } , msl: { title: "Tekanan Udara (hPa)", scale: chroma.scale(['#0000ff', '#00ffff', '#00ff00', '#ffff00', '#ff0000']).domain([1005, 1015]), min: "Rendah (1005 hPa)", max: "Tinggi (1015 hPa)", css: "linear-gradient(to right, #0000ff, #00ffff, #00ff00, #ffff00, #ff0000)" },
-    hujan: { title: "Akumulasi Curah Hujan (mm)", scale: chroma.scale(['#ffffff', '#00ffff', '#0000ff', '#00008b']).domain([0, 50]), min: "Cerah (0mm)", max: "Lebat (>50mm)", css: "linear-gradient(to right, #ffffff, #00ffff, #0000ff, #00008b)" },
-    angin: { title: "Angin 10m (m/s)" }, 
+    suhu: { 
+        title: "Suhu Air Laut", 
+        scale: chroma.scale(['#313695', '#4575b4', '#74add1', '#abd9e9', '#e0f3f8', '#ffffbf', '#fee090', '#fdae61', '#f46d43', '#d73027', '#a50026']).domain([26, 32]), 
+        min: "26°C", max: ">32°C", 
+        css: "linear-gradient(to right, #313695, #4575b4, #74add1, #abd9e9, #e0f3f8, #ffffbf, #fee090, #fdae61, #f46d43, #d73027, #a50026)" 
+    },
+    gelombang: { 
+        title: "Tinggi Gelombang (m)", 
+        scale: chroma.scale(['#ffffff', '#ccffff', '#66ccff', '#0066ff', '#000099', '#4d004d']).domain([0, 2]), 
+        min: "0 m", max: ">2.5 m", 
+        css: "linear-gradient(to right, #ffffff, #ccffff, #66ccff, #0066ff, #000099, #4d004d)" 
+    },
+    salinitas: { 
+        title: "Salinitas Air Laut", 
+        scale: chroma.scale(['#d1eeea', '#9bd1c6', '#5eb299', '#2f8f74', '#0d6c54', '#014936']).domain([30, 35]), 
+        min: "30 PSU", max: "35 PSU", 
+        css: "linear-gradient(to right, #d1eeea, #9bd1c6, #5eb299, #2f8f74, #0d6c54, #014936)" 
+    },
+    ssh: { 
+        title: "Elevasi Muka Air (SSH)", 
+        scale: chroma.scale(['#053061', '#2166ac', '#4393c3', '#92c5de', '#d1e5f0', '#f7f7f7', '#fddbc7', '#f4a582', '#d6604d', '#b2182b', '#67001f']).domain([-0.5, 0.5]), 
+        min: "-0.5 m", max: "+0.5 m", 
+        css: "linear-gradient(to right, #053061, #2166ac, #4393c3, #92c5de, #d1e5f0, #f7f7f7, #fddbc7, #f4a582, #d6604d, #b2182b, #67001f)" 
+    },
+    hujan: { 
+        title: "Curah Hujan (mm)", 
+        scale: chroma.scale(['#ffffff', '#c7e9b4', '#7fcdbb', '#41b6c4', '#1d91c0', '#225ea8', '#0c2c84']).domain([0, 50]), 
+        min: "0 mm", max: ">50 mm", 
+        css: "linear-gradient(to right, #ffffff, #c7e9b4, #7fcdbb, #41b6c4, #1d91c0, #225ea8, #0c2c84)" 
+    },
+    msl: { 
+        title: "Tekanan Udara (MSLP)", 
+        scale: chroma.scale(['#000080', '#0000ff', '#00ffff', '#00ff00', '#ffff00', '#ff0000', '#800000']).domain([1005, 1015]), 
+        min: "1005 hPa", max: "1015 hPa", 
+        css: "linear-gradient(to right, #000080, #0000ff, #00ffff, #00ff00, #ffff00, #ff0000, #800000)" 
+    },
     batimetri: { 
         title: "Kedalaman Dasar Laut (m)", 
-        // Warna biru gelap (palung) ke biru pucat (pesisir)
-        scale: chroma.scale(['#000b2e', '#08306b', '#2879b9', '#c8ddf0']), 
-        // min, max, dan domain tidak di-hardcode lagi di sini, akan kita hitung otomatis!
-        css: "linear-gradient(to right, #000b2e, #08306b, #2879b9, #c8ddf0)" 
+        scale: chroma.scale(['#000b2e', '#08306b', '#2879b9', '#73b3d8', '#c8ddf0']), 
+        css: "linear-gradient(to right, #000b2e, #08306b, #2879b9, #73b3d8, #c8ddf0)",
+        min: "Palung Dalam", max: "Pesisir Dangkal" // Min Max Batimetri otomatis terganti oleh angka asli dari API
     },
+    // KUNCI PERBAIKAN: Menambahkan palet rahasia Windy.com (Turbo) untuk legenda Arus & Angin
+    arus: { 
+        title: "Kecepatan Arus Laut", 
+        min: "0 m/s", max: "0.8 m/s", 
+        css: "linear-gradient(to right, #30123b, #4662d7, #36aaf9, #1ae4b6, #72fe5e, #c8ef34, #faba39, #f66b19, #cb2a04, #7a0403)" 
+    },
+    angin: { 
+        title: "Kecepatan Angin 10m", 
+        min: "0 m/s", max: ">15 m/s", 
+        css: "linear-gradient(to right, #30123b, #4662d7, #36aaf9, #1ae4b6, #72fe5e, #c8ef34, #faba39, #f66b19, #cb2a04, #7a0403)" 
+    }
 };
 
 // ==========================================
@@ -408,22 +447,24 @@ async function renderActiveLayer(dayIndex) {
         }
 
         // --- 4. RENDER KE PETA (ARUS ATAU RASTER) ---
+        
+        // KUNCI UTAMA: Tampilkan dan isi Legenda untuk SEMUA parameter tanpa terkecuali di awal!
+        const conf = configs[activeDataType];
+        const legendaContainer = document.getElementById('legenda-container');
+        if (legendaContainer) {
+            legendaContainer.classList.remove('hidden');
+            document.getElementById('legenda-warna').style.background = conf.css;
+            document.getElementById('legenda-min').textContent = conf.min;
+            document.getElementById('legenda-max').textContent = conf.max;
+        }
+
         if (activeDataType === 'arus' || activeDataType === 'angin') {
-            document.getElementById('legenda-container').classList.add('hidden');
             let isAngin = (activeDataType === 'angin');
             
-            // KUNCI ESTETIKA WINDY.COM: Palet warna "Turbo Colormap" (Sangat kaya warna)
+            // Palet warna rahasia "Turbo Colormap" untuk Arus & Angin
             const windyColormap = [
-                "#30123b", // Sangat Lambat (Ungu Gelap)
-                "#4662d7", // Biru
-                "#36aaf9", // Cyan/Biru Muda
-                "#1ae4b6", // Hijau Tosca
-                "#72fe5e", // Hijau Terang
-                "#c8ef34", // Kuning Kehijauan
-                "#faba39", // Kuning Emas
-                "#f66b19", // Oranye
-                "#cb2a04", // Merah
-                "#7a0403"  // Sangat Kencang (Merah Gelap/Maroon)
+                "#30123b", "#4662d7", "#36aaf9", "#1ae4b6", "#72fe5e", 
+                "#c8ef34", "#faba39", "#f66b19", "#cb2a04", "#7a0403"
             ];
 
             velocityLayer = L.velocityLayer({
@@ -434,21 +475,13 @@ async function renderActiveLayer(dayIndex) {
                     speedUnit: 'm/s' 
                 },
                 data: dayData, 
-                // Batas maksimal kecepatan agar warnanya menyebar merata (Arus maks 0.8 m/s, Angin 15 m/s)
                 maxVelocity: isAngin ? 15.0 : 0.8,
                 velocityScale: isAngin ? 0.005 : 0.1,
-                // Terapkan warna canggih di sini!
                 colorScale: windyColormap 
             }).addTo(map);
+            
         } else {
-            // Render raster warna (Suhu, Batimetri, dsb)
-            const conf = configs[activeDataType];
-            document.getElementById('legenda-container').classList.remove('hidden');
-            document.getElementById('legenda-warna').style.background = conf.css;
-            document.getElementById('legenda-min').textContent = conf.min;
-            document.getElementById('legenda-max').textContent = conf.max;
-
-            // ... (Kodingan untuk menggambar Rectangle/kotak-kotak raster tetap ada di sini)
+            // Render raster warna kotak-kotak (Suhu, Batimetri, dsb)
             const nx = dayData.nx, ny = dayData.ny;
             const lo1 = dayData.lo1, la1 = dayData.la1;
             const dx = dayData.dx, dy = dayData.dy;
@@ -478,7 +511,6 @@ async function renderActiveLayer(dayIndex) {
                         rect.metoceanVal = val;
                         rect.metoceanTitle = conf.title;
                         
-                        // KUNCI: .bindTooltip() sudah dihapus, langsung masukkan ke grup peta!
                         rect.addTo(activeRasterGroup);
                     }
                 }
