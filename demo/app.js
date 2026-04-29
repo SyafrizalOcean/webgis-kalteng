@@ -860,27 +860,28 @@ window.buildUnifiedSidebar = async function(lat, lon, zonasiProps = null) {
                             plugins: { legend: { display: false } }, 
                             scales: { 
                                 x: { 
-                                    ticks: { 
-                                        font: { size: 8, weight: 'bold' },
-                                        maxRotation: 0,
-                                        callback: function(val, index) {
-                                            let label = this.getLabelForValue(val);
-                                            // Jika data laut (harian), selalu tampilkan nama harinya
-                                            if (dataTime.length <= 15) {
-                                                return label.split(' - ')[0]; 
-                                            }
-                                            // Jika data cuaca (3-jaman), HANYA tampilkan nama hari jika jamnya menunjukkan "07:00" (Siklus awal harian)
-                                            if (label.includes('07:00')) {
-                                                return label.split(' - ')[0];
-                                            }
-                                            return null; // Sembunyikan jam lainnya agar tidak semut
+                                ticks: { 
+                                    font: { size: 8, weight: 'bold' },
+                                    maxRotation: 0,
+                                    autoSkip: false, // KUNCI 1: Paksa grafik tidak meloncati sumbu
+                                    callback: function(val, index) {
+                                        let label = this.getLabelForValue(val);
+                                        // Jika data laut (Copernicus)
+                                        if (dataTime.length <= 15) {
+                                            return label.split(' - ')[0]; 
                                         }
-                                    },
-                                    grid: {
-                                        // Beri garis tebal sebagai pemisah antar hari
-                                        color: (ctx) => ctx.tick && ctx.tick.label ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0)'
+                                        // Jika data cuaca (ECMWF), cari jam 07:00
+                                        if (label.includes('07:00')) {
+                                            return label.split(' - ')[0];
+                                        }
+                                        return ""; // KUNCI 2: Pakai string kosong, BUKAN null!
                                     }
-                                }, 
+                                },
+                                grid: {
+                                    // Garis pemisah antar hari hanya muncul jika ada teksnya
+                                    color: (ctx) => ctx.tick && ctx.tick.label !== "" ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0)'
+                                }
+                            }, 
                                 y: { ticks: { font: { size: 8 } } } 
                             } 
                         }

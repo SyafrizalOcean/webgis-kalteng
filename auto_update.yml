@@ -1,0 +1,34 @@
+name: Robot Auto-Update MetOcean
+
+on:
+  schedule:
+    # Berjalan otomatis setiap jam 01:00 UTC (08:00 WIB Pagi)
+    - cron: '0 1 * * *'
+  workflow_dispatch: # Mengizinkan tombol klik manual di web GitHub
+
+jobs:
+  update-data:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Tarik Kodingan
+        uses: actions/checkout@v3
+
+      - name: Siapkan Mesin Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install Library Oseanografi
+        run: |
+          pip install xarray ecmwf-opendata cfgrib netCDF4
+
+      - name: Mulai Download & Potong Data ECMWF
+        run: python update_udara_lokal.py
+
+      - name: Simpan & Kirim ke Server
+        run: |
+          git config --global user.name "Robot ITB"
+          git config --global user.email "robot@github.com"
+          git add data_nc/
+          git commit -m "🤖 Auto-update data satelit harian" || echo "Tidak ada data baru"
+          git push
