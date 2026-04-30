@@ -2,7 +2,7 @@ name: Robot Auto-Update MetOcean
 
 on:
   schedule:
-    # Berjalan otomatis setiap jam 01:00 UTC (08:00 WIB Pagi)
+    # Menggunakan "jalur tikus" di menit ke-17 (08:17 WIB) agar tidak terjebak macet server
     - cron: '17 1 * * *'
   workflow_dispatch:
 
@@ -11,14 +11,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Tarik Kodingan
-        uses: actions/checkout@v3
+        # Kunci Anti-Error: Pakai kode SHA panjang pengganti versi v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
       - name: Siapkan Mesin Python
-        uses: actions/setup-python@v4
+        # Kunci Anti-Error: Pakai kode SHA panjang pengganti versi v5
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b
         with:
           python-version: '3.10'
 
-      # Tambahkan copernicusmarine agar robot bisa download data laut
       - name: Install Library Oseanografi
         run: |
           pip install xarray ecmwf-opendata cfgrib netCDF4 copernicusmarine 
