@@ -3,7 +3,7 @@ name: Robot Auto-Update MetOcean
 on:
   schedule:
     # Berjalan otomatis setiap jam 01:00 UTC (08:00 WIB Pagi)
-    - cron: '0 1 * * *'
+    - cron: '17 1 * * *'
   workflow_dispatch:
 
 jobs:
