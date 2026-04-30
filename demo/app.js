@@ -859,25 +859,26 @@ window.buildUnifiedSidebar = async function(lat, lon, zonasiProps = null) {
                 </div>
         `;
         
-        // WADAH GRAFIK TIME SERIES & KEDALAMAN (Muncul untuk semua kecuali batimetri)
+        // WADAH GRAFIK TIME SERIES & KEDALAMAN 
         if (moData.type !== 'batimetri') {
             html += `
                 <div class="mt-3">
                     <div class="flex justify-between items-center">
-                        <label class="text-[9px] font-bold text-gray-500 uppercase">Time Series Prakiraan 10 Hari</label>
-                        <a href="https://api-webgis-kalteng.onrender.com/api/export-csv?lat=${lat}&lon=${lon}&param=${moData.type}&mode=timeseries" target="_blank" class="text-[9px] bg-green-600 text-white px-2 py-0.5 rounded hover:bg-green-700 transition cursor-pointer flex items-center gap-1 shadow-sm">📥 CSV</a>
+                        <label class="text-[9px] font-bold text-gray-500 uppercase">Prakiraan 10 Hari (Time Series)</label>
+                        <!-- KUNCI CSV 1: Tombol dimatikan sementara saat loading -->
+                        <a id="btn-dl-ts" class="text-[9px] bg-green-600 text-white px-2 py-0.5 rounded transition shadow-sm opacity-50 pointer-events-none flex items-center gap-1">⏳ Tunggu...</a>
                     </div>
                     <div class="relative h-28 w-full mt-1 bg-white border border-gray-100 rounded shadow-inner"><canvas id="chartTimeSeries"></canvas></div>
                 </div>
             `;
             
-            // HANYA MUNCUL JIKA DATANYA 3D (Suhu, Salinitas, Arus)
             if (['suhu', 'salinitas', 'arus'].includes(moData.type)) {
                 html += `
                     <div class="mt-3 border-t border-gray-100 pt-3">
                         <div class="flex justify-between items-center">
-                            <label class="text-[9px] font-bold text-gray-500 uppercase">Profil Kedalaman</label>
-                            <a href="https://api-webgis-kalteng.onrender.com/api/export-csv?lat=${lat}&lon=${lon}&param=${moData.type}&mode=depth" target="_blank" class="text-[9px] bg-green-600 text-white px-2 py-0.5 rounded hover:bg-green-700 transition cursor-pointer flex items-center gap-1 shadow-sm">📥 CSV</a>
+                            <label class="text-[9px] font-bold text-gray-500 uppercase">Profil Kedalaman (Data Asli API)</label>
+                            <!-- KUNCI CSV 2: Tombol dimatikan sementara saat loading -->
+                            <a id="btn-dl-depth" class="text-[9px] bg-green-600 text-white px-2 py-0.5 rounded transition shadow-sm opacity-50 pointer-events-none flex items-center gap-1">⏳ Tunggu...</a>
                         </div>
                         <div class="relative h-48 w-full mt-1 bg-white border border-gray-100 rounded shadow-inner flex items-center justify-center">
                             <span id="loading-depth" class="text-xs text-blue-600 font-bold animate-pulse">Menghubungkan API...</span>
@@ -888,33 +889,21 @@ window.buildUnifiedSidebar = async function(lat, lon, zonasiProps = null) {
             }
         }
         
-        // KUNCI PERBAIKAN 2: Tampilkan Info Literatur Batnas jika yang diklik Batimetri
         if (moData.type === 'batimetri') {
              html += `
                 <div class="mt-4 p-4 bg-blue-50 rounded-lg border-l-4 border-blue-600 shadow-sm">
                     <h4 class="text-xs font-bold text-blue-900 uppercase mb-2">Informasi Batimetri Dasar Laut</h4>
                     <div class="text-[11px] leading-relaxed text-gray-700 text-justify space-y-2">
                         <p>Data batimetri ini bersumber dari <b>Batnas (Batimetri Nasional)</b> yang dirilis oleh Badan Informasi Geospasial (BIG).</p>
-                        <p>Batnas memiliki resolusi spasial 6 arc-second (sekitar 180 meter), yang merupakan penggabungan data hasil survei pemeruman dengan data altimetri satelit, menjadikannya sebagai salah satu basis data dasar laut paling akurat untuk perairan dangkal dan pesisir wilayah Indonesia.</p>
                     </div>
                 </div>
             `;
         }
-        
         html += `</div>`;
     }
 
     if (typeof isThermalFrontActive !== 'undefined' && isThermalFrontActive) {
-        html += `
-            <div class="mt-4 p-4 bg-blue-50 rounded-lg border-l-4 border-blue-600 shadow-sm">
-                <h4 class="text-xs font-bold text-blue-900 uppercase mb-2">Informasi Thermal Front</h4>
-                <div class="text-[11px] leading-relaxed text-gray-700 text-justify space-y-2">
-                    <p>Thermal front merupakan zona yang menggambarkan wilayah dengan gradien temperatur, baik secara horizontal (Sholva et al., 2013) maupun vertikal (Belkin dan Cornillon, 2003).</p>
-                    <p>Zona ini terbentuk di perairan yang memiliki perbedaan suhu mencolok dengan daerah sekitarnya, dengan kisaran perbedaan sekitar 0,5°C dalam jarak 3 km (Simbolon et al., 2013). Zona ini juga tergolong dalam zona konvergensi massa air yang kaya akan nutrien, klorofil-a, fitoplankton, dan zooplankton, sehingga berperan penting dalam meningkatkan produktivitas perairan (Valvanis et al., 2005; Sholva et al., 2013).</p>
-                    <p>Identifikasi thermal front sangat krusial bagi zona penangkapan ikan karena area ini merupakan zona konvergensi massa air. Kandungan nutrien yang tinggi menarik berbagai organisme laut, termasuk ikan-ikan pelagis yang sering menjadi target perikanan. Selain itu, perbedaan suhu yang mencolok di zona ini menciptakan kondisi lingkungan yang mendukung keberagaman dan konsentrasi ikan dalam jumlah besar.</p>
-                </div>
-            </div>
-        `;
+        html += `<div class="mt-4 p-4 bg-blue-50 rounded-lg border-l-4 border-blue-600 shadow-sm"><h4 class="text-xs font-bold text-blue-900 uppercase mb-2">Informasi Thermal Front</h4><p class="text-[11px]">Zona front termal adalah indikator tingginya produktivitas perairan.</p></div>`;
     }
 
     if (!zonasiProps && !moData && !isThermalFrontActive) {
@@ -923,115 +912,111 @@ window.buildUnifiedSidebar = async function(lat, lon, zonasiProps = null) {
 
     sidebarContent.innerHTML = html;
 
-// --- C. GAMBAR GRAFIK TIME SERIES (DATA ASLI) ---
+    // --- C. GAMBAR GRAFIK TIME SERIES (DATA ASLI) ---
     if (moData && moData.type !== 'batimetri') {
-        
-        // 1. Kosongkan kanvas dan tampilkan indikator loading
         const tsCanvasContainer = document.getElementById('chartTimeSeries').parentNode;
         tsCanvasContainer.innerHTML = '<span id="loading-ts" class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-[10px] text-blue-600 font-bold animate-pulse">Menarik data 10 Hari...</span><canvas id="chartTimeSeries" class="w-full h-full"></canvas>';
 
         try {
-            // 2. Cek apakah layer butuh index kedalaman (3D)
             let depthParam = '';
             if (['suhu', 'salinitas', 'arus'].includes(moData.type)) {
                 const dSlider = document.getElementById('depthSlider');
                 if (dSlider) depthParam = `&depth_index=${dSlider.value}`;
             }
 
-            // 3. Tarik data asli dari Backend!
             const tsRes = await fetch(`https://api-webgis-kalteng.onrender.com/api/timeseries?lat=${lat}&lon=${lon}&param=${moData.type}${depthParam}`);
             const tsData = await tsRes.json();
 
-            // 4. Hapus tulisan loading
             const loadingEl = document.getElementById('loading-ts');
             if (loadingEl) loadingEl.remove();
                     
-                if (!tsData.error && tsData.values) {
-                    let labelsTime = [];
-                    let dataTime = [];
-                    
-                 // 1. PENYELARASAN TITIK DATA AGAR TIDAK NUMPUK (SIMETRIS HYBRID)
-                    let dataLength = tsData.values.length; // Deteksi otomatis jumlah data dari Python
+            if (!tsData.error && tsData.values) {
+                let labelsTime = [];
+                let dataTime = [];
+                let dataLength = tsData.values.length; 
 
-                    if (dataLength <= 15) {
-                        // SKENARIO A: DATA KEDALAMAN (DAILY) - Cuma 10 Titik
-                        // (Merespon jika user menggeser slider kedalaman)
-                        for (let i = 0; i < dataLength; i++) {
-                            let hourIndex = Math.min(i * 24, 239);
-                            labelsTime.push(hourlyDates[hourIndex]);
-                            dataTime.push(tsData.values[i]);
-                        }
-                    } else if (dataLength === 240) {
-                        // SKENARIO B: DATA PERMUKAAN (HOURLY) - Full 240 Titik
-                        // (Merespon saat user klik peta di kedalaman 0m)
-                        for (let i = 0; i < 240; i++) {
-                            labelsTime.push(hourlyDates[i]);
-                            dataTime.push(tsData.values[i]);
-                        }
-                    } else {
-                        // SKENARIO C: DATA ECMWF (Angin, MSL, Hujan) - 81 Titik
-                        for (let h = 0; h <= 240; h += 3) {
-                            let safeHour = Math.min(h, 239);
-                            labelsTime.push(hourlyDates[safeHour]);
-
-                            if (h <= 144) {
-                                let idx = h / 3;
-                                dataTime.push(tsData.values[idx]);
-                            } else {
-                                let diff = h - 144;
-                                let step6_idx = Math.floor((diff + 3) / 6);
-                                let actual_idx = 48 + step6_idx;
-                                if (actual_idx >= tsData.values.length) actual_idx = tsData.values.length - 1;
-                                dataTime.push(tsData.values[actual_idx]);
-                            }
-                        }
+                // === KUNCI ANTI-MINUS 1: Saring Nilai Negatif untuk Angin & Arus ===
+                if (dataLength <= 15) {
+                    for (let i = 0; i < dataLength; i++) {
+                        labelsTime.push(hourlyDates[Math.min(i * 24, 239)]);
+                        let val = tsData.values[i];
+                        if (['arus', 'angin'].includes(moData.type)) val = Math.abs(val); 
+                        dataTime.push(val);
                     }
-
-                    // 2. GAMBAR GRAFIKNYA DENGAN SUMBU X YANG RAPI
-                    if(timeChartInstance) timeChartInstance.destroy();
-                    timeChartInstance = new Chart(document.getElementById('chartTimeSeries').getContext('2d'), {
-                        type: 'line', 
-                        data: { labels: labelsTime, datasets: [{ label: moData.title, data: dataTime, borderColor: '#2563eb', backgroundColor: 'rgba(37, 99, 235, 0.2)', fill: true, tension: 0.4, pointRadius: dataLength === 240 ? 0 : 2 }] },
-                        options: { 
-                            maintainAspectRatio: false, 
-                            plugins: { legend: { display: false } }, 
-                            scales: { 
-                                x: { 
-                                    ticks: { 
-                                        font: { size: 8, weight: 'bold' },
-                                        maxRotation: 0,
-                                        autoSkip: false, // KUNCI: JANGAN LONCATI TITIK
-                                        callback: function(val, index) {
-                                            let label = this.getLabelForValue(val);
-                                            // Jika data Daily, langsung tampilkan nama hari
-                                            if (dataLength <= 15) return label.split(' - ')[0]; 
-                                            
-                                            // Jika Hourly (240) atau ECMWF (81), cegah teks menumpuk:
-                                            // Hanya cetak teks hari saat jam 07:00 pagi WIB
-                                            if (label.includes('07:00')) return label.split(' - ')[0];
-                                            
-                                            return ""; // Sembunyikan jam sisanya
-                                        }
-                                    },
-                                    grid: {
-                                        color: (ctx) => ctx.tick && ctx.tick.label !== "" ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0)'
-                                    }
-                                }, 
-                                y: { ticks: { font: { size: 8 } } } 
-                            } 
+                } else if (dataLength > 100) {
+                    // KUNCI PERBAIKAN: Tangkap data tiap jam walau jumlahnya tidak pas 240 (misal 241 atau 239)
+                    let limit = Math.min(dataLength, 240);
+                    for (let i = 0; i < limit; i++) {
+                        labelsTime.push(hourlyDates[i]);
+                        let val = tsData.values[i];
+                        if (['arus', 'angin'].includes(moData.type)) val = Math.abs(val); 
+                        dataTime.push(val);
+                    }
+                } else {
+                    // Logika backup untuk data ECMWF (81 titik: per 3 jam lalu per 6 jam)
+                    for (let h = 0; h <= 240; h += 3) {
+                        labelsTime.push(hourlyDates[Math.min(h, 239)]);
+                        let val = 0;
+                        if (h <= 144) {
+                            val = tsData.values[Math.floor(h / 3)];
+                        } else {
+                            let step6_idx = Math.floor(((h - 144) + 3) / 6);
+                            let actual_idx = Math.min(48 + step6_idx, tsData.values.length - 1);
+                            val = tsData.values[actual_idx];
                         }
-                    });
+                        if (['arus', 'angin'].includes(moData.type)) val = Math.abs(val); 
+                        dataTime.push(val);
+                    }
                 }
-                
+
+                // === KUNCI DOWNLOAD CSV 1: Buat CSV Langsung di Browser ===
+                let csvContent = "Waktu,Nilai Parameter\n";
+                for (let k = 0; k < labelsTime.length; k++) {
+                    csvContent += `"${labelsTime[k]}",${dataTime[k]}\n`;
+                }
+                let blob = new Blob([csvContent], { type: 'text/csv' });
+                let btnDlTs = document.getElementById('btn-dl-ts');
+                if (btnDlTs) {
+                    btnDlTs.href = URL.createObjectURL(blob);
+                    btnDlTs.download = `TimeSeries_${moData.type}_Lat${lat.toFixed(2)}_Lon${lon.toFixed(2)}.csv`;
+                    btnDlTs.innerHTML = "📥 CSV";
+                    btnDlTs.classList.remove('opacity-50', 'pointer-events-none');
+                    btnDlTs.classList.add('hover:bg-green-700');
+                }
+
+                if(timeChartInstance) timeChartInstance.destroy();
+                timeChartInstance = new Chart(document.getElementById('chartTimeSeries').getContext('2d'), {
+                    type: 'line', 
+                    data: { labels: labelsTime, datasets: [{ label: moData.title, data: dataTime, borderColor: '#2563eb', backgroundColor: 'rgba(37, 99, 235, 0.2)', fill: true, tension: 0.4, pointRadius: dataLength === 240 ? 0 : 2 }] },
+                    options: { 
+                        maintainAspectRatio: false, 
+                        plugins: { legend: { display: false } }, 
+                        scales: { 
+                            x: { 
+                                ticks: { 
+                                    font: { size: 8, weight: 'bold' }, maxRotation: 0, autoSkip: false,
+                                    callback: function(val, index) {
+                                        let label = this.getLabelForValue(val);
+                                        if (dataLength <= 15) return label.split(' - ')[0]; 
+                                        if (label.includes('07:00')) return label.split(' - ')[0];
+                                        return ""; 
+                                    }
+                                },
+                                grid: { color: (ctx) => ctx.tick && ctx.tick.label !== "" ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0)' }
+                            }, 
+                            y: { ticks: { font: { size: 8 } } } 
+                        } 
+                    }
+                });
+            }
         } catch(e) {
             console.error("Gagal memuat Time Series:", e);
             document.getElementById('chartTimeSeries').parentNode.innerHTML = '<span class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-red-500 text-xs font-bold">Gagal terhubung ke server</span>';
         }
 
-// --- D. FETCH API & GAMBAR GRAFIK KEDALAMAN (HANYA UNTUK DATA 3D) ---
+        // --- D. FETCH API & GAMBAR GRAFIK KEDALAMAN ---
         if (['suhu', 'salinitas', 'arus'].includes(moData.type)) {
             try {
-                // KUNCI PERBAIKAN 1: URL disesuaikan dengan format API Python yang baru (pakai garis miring, bukan tanda tanya)
                 const response = await fetch(`https://api-webgis-kalteng.onrender.com/api/profile/${moData.type}/${lat}/${lon}/${currentSliderIndex}`);
                 const realData = await response.json();
 
@@ -1039,10 +1024,28 @@ window.buildUnifiedSidebar = async function(lat, lon, zonasiProps = null) {
                 const canvasDepth = document.getElementById('chartDepth');
                 canvasDepth.classList.remove('hidden');
 
-                // KUNCI PERBAIKAN 2: Ekstrak array 'profile' dari Python menjadi sumbu X (Label Kedalaman) dan sumbu Y (Nilai)
                 if (realData.profile && realData.profile.length > 0) {
                     let depthLabels = realData.profile.map(item => item.depth + 'm');
-                    let parameterValues = realData.profile.map(item => item.value);
+                    
+                    // === KUNCI ANTI-MINUS 2: Saring Nilai Negatif untuk Profil Kedalaman ===
+                    let parameterValues = realData.profile.map(item => {
+                        return ['arus', 'angin'].includes(moData.type) ? Math.abs(item.value) : item.value;
+                    });
+
+                    // === KUNCI DOWNLOAD CSV 2: Buat CSV Kedalaman Langsung di Browser ===
+                    let csvDepth = "Kedalaman (m),Nilai Parameter\n";
+                    for (let k = 0; k < depthLabels.length; k++) {
+                        csvDepth += `${realData.profile[k].depth},${parameterValues[k]}\n`;
+                    }
+                    let blobDepth = new Blob([csvDepth], { type: 'text/csv' });
+                    let btnDlDepth = document.getElementById('btn-dl-depth');
+                    if (btnDlDepth) {
+                        btnDlDepth.href = URL.createObjectURL(blobDepth);
+                        btnDlDepth.download = `DepthProfile_${moData.type}_Lat${lat.toFixed(2)}_Lon${lon.toFixed(2)}.csv`;
+                        btnDlDepth.innerHTML = "📥 CSV";
+                        btnDlDepth.classList.remove('opacity-50', 'pointer-events-none');
+                        btnDlDepth.classList.add('hover:bg-green-700');
+                    }
 
                     if(typeof depthChartInstance !== 'undefined' && depthChartInstance) depthChartInstance.destroy();
                     window.depthChartInstance = new Chart(canvasDepth.getContext('2d'), {
@@ -1050,20 +1053,11 @@ window.buildUnifiedSidebar = async function(lat, lon, zonasiProps = null) {
                         data: { 
                             labels: depthLabels, 
                             datasets: [{ 
-                                label: moData.title, 
-                                data: parameterValues, 
-                                borderColor: '#0000ff', 
-                                backgroundColor: '#0000ff', 
-                                fill: false, 
-                                tension: 0.1, 
-                                pointRadius: 3, 
-                                pointHoverRadius: 6 
+                                label: moData.title, data: parameterValues, borderColor: '#0000ff', backgroundColor: '#0000ff', fill: false, tension: 0.1, pointRadius: 3, pointHoverRadius: 6 
                             }] 
                         },
                         options: { 
-                            maintainAspectRatio: false, 
-                            indexAxis: 'y', // Memutar grafik agar kedalaman memanjang ke bawah
-                            plugins: { legend: { display: false } }, 
+                            maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { display: false } }, 
                             scales: { 
                                 x: { position: 'top', title: { display: true, text: `Nilai Parameter`, font: {size: 9, weight: 'bold'} }, ticks: { font: { size: 9 } } }, 
                                 y: { reverse: false, title: { display: true, text: 'Kedalaman (m)', font: {size: 9, weight: 'bold'} }, ticks: { font: { size: 9 } } } 
@@ -1082,7 +1076,6 @@ window.buildUnifiedSidebar = async function(lat, lon, zonasiProps = null) {
         }
     }
 };
-
 map.on('click', function(e) {
     if (activeDataType || isThermalFrontActive) {
         buildUnifiedSidebar(e.latlng.lat, e.latlng.lng, null);
