@@ -602,7 +602,7 @@ const metoceanItems = document.querySelectorAll('.metocean-item');
 const zonasiItems = document.querySelectorAll('.zonasi-item');
 
 // --- A. AUTO-TAMBAH CHECKBOX KE MENU (Biar ga repot edit HTML) ---
-document.querySelectorAll('.zonasi-item, .metocean-item').forEach(item => {
+document.querySelectorAll('.zonasi-item').forEach(item => {
     const textSpan = item.querySelector('span.text-xs');
     const cb = document.createElement('input');
     cb.type = 'checkbox';
@@ -620,8 +620,9 @@ function matikanSemuaLayer() {
 
     // 2. Normalkan kembali semua menu & hilangkan abu-abu
     document.querySelectorAll('.metocean-item, .ekstra-item').forEach(item => {
-        item.classList.replace('bg-yellow-100', 'bg-gray-100');
-        item.classList.remove('opacity-40', 'pointer-events-none', 'grayscale');
+        item.classList.replace('bg-yellow-100', 'bg-gray-100'); // Untuk Zonasi
+        item.classList.replace('border-yellow-400', 'border-transparent'); // Untuk Kotak Baru
+        item.classList.remove('opacity-40', 'pointer-events-none', 'grayscale', 'ring-2', 'ring-yellow-400', 'shadow-md');
         const cb = item.querySelector('input[type="checkbox"]');
         if (cb) cb.checked = false;
     });
@@ -661,8 +662,9 @@ metoceanItems.forEach(item => {
         if (!isCurrentlyChecked) {
             activeDataType = type; 
             if (cb) cb.checked = true;
-            this.classList.replace('bg-gray-100', 'bg-yellow-100');
-            
+            // --- PERUBAHAN UI KOTAK BARU ---
+            this.classList.replace('border-transparent', 'border-yellow-400');
+            this.classList.add('ring-2', 'ring-yellow-400', 'shadow-md');
             // --- KUNCI: BIKIN MENU LAIN JADI ABU-ABU MATI ---
             document.querySelectorAll('.metocean-item, .ekstra-item').forEach(otherItem => {
                 if (otherItem !== this) { // Jika bukan tombol yang sedang diklik ini
@@ -1254,7 +1256,8 @@ document.getElementById('btn-thermal-front').addEventListener('click', function(
     if (!isCurrentlyActive) {
         isThermalFrontActive = true;
         document.getElementById('cb-thermal-front').checked = true;
-        this.classList.replace('bg-gray-100', 'bg-yellow-100');
+        this.classList.replace('border-transparent', 'border-yellow-400');
+        this.classList.add('ring-2', 'ring-yellow-400', 'shadow-md');
         
         // --- KUNCI: BIKIN MENU LAIN JADI ABU-ABU MATI ---
         document.querySelectorAll('.metocean-item, .ekstra-item').forEach(item => {
@@ -2281,7 +2284,8 @@ document.getElementById('btn-tide-station').addEventListener('click', function()
     if (!isCurrentlyActive) {
         isTideActive = true;
         document.getElementById('cb-tide-station').checked = true;
-        this.classList.replace('bg-gray-100', 'bg-yellow-100');
+        this.classList.replace('border-transparent', 'border-yellow-400');
+        this.classList.add('ring-2', 'ring-yellow-400', 'shadow-md');
         
         // --- KUNCI: BIKIN MENU LAIN JADI ABU-ABU MATI ---
         document.querySelectorAll('.metocean-item, .ekstra-item').forEach(item => {
