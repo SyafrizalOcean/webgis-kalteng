@@ -16,6 +16,9 @@
     <script src="https://unpkg.com/@mapbox/shp-write@latest/shpwrite.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <!-- Library Driver.js untuk Tour Peta -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/driver.js@1.0.1/dist/driver.css"/>
+    <script src="https://cdn.jsdelivr.net/npm/driver.js@1.0.1/dist/driver.js.iife.js"></script>
 
     <style>
         .parameter-list::-webkit-scrollbar { width: 6px; }
@@ -196,7 +199,7 @@
     </div>
 
     <div class="absolute bottom-16 right-4 z-10 flex flex-col items-end space-y-3 pointer-events-none">
-        <button class="pointer-events-auto bg-blue-600 text-white p-3 rounded-full shadow-lg hover:bg-blue-700 transition" title="Mulai Tour WebGIS">✈️</button>
+        <button id="btn-tour" class="pointer-events-auto bg-blue-600 text-white p-3 rounded-full shadow-lg hover:bg-blue-700 transition" title="Mulai Tour WebGIS">✈️</button>
         <div id="toolbar-bottom" class="pointer-events-auto flex space-x-1 bg-white p-1 rounded shadow-lg text-gray-700 border border-gray-100">
             <button id="btn-zoom-in" class="p-2 hover:bg-gray-200 rounded">➕</button>
             <button id="btn-home" class="p-2 hover:bg-gray-200 rounded" title="Kembali ke Tampilan Awal">🏠</button>
@@ -288,5 +291,6 @@
     </div>
 
     <script src="app.js"></script>
+    <script src="tour.js"></script>
 </body>
 </html>

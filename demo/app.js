@@ -864,7 +864,7 @@ window.buildUnifiedSidebar = async function(lat, lon, zonasiProps = null) {
             html += `
                 <div class="mt-3">
                     <div class="flex justify-between items-center">
-                        <label class="text-[9px] font-bold text-gray-500 uppercase">Prakiraan 10 Hari (Time Series)</label>
+                        <label class="text-[9px] font-bold text-gray-500 uppercase">Time Series Prakiraan 10 Hari</label>
                         <a href="https://api-webgis-kalteng.onrender.com/api/export-csv?lat=${lat}&lon=${lon}&param=${moData.type}&mode=timeseries" target="_blank" class="text-[9px] bg-green-600 text-white px-2 py-0.5 rounded hover:bg-green-700 transition cursor-pointer flex items-center gap-1 shadow-sm">📥 CSV</a>
                     </div>
                     <div class="relative h-28 w-full mt-1 bg-white border border-gray-100 rounded shadow-inner"><canvas id="chartTimeSeries"></canvas></div>
@@ -876,7 +876,7 @@ window.buildUnifiedSidebar = async function(lat, lon, zonasiProps = null) {
                 html += `
                     <div class="mt-3 border-t border-gray-100 pt-3">
                         <div class="flex justify-between items-center">
-                            <label class="text-[9px] font-bold text-gray-500 uppercase">Profil Kedalaman (Data Asli API)</label>
+                            <label class="text-[9px] font-bold text-gray-500 uppercase">Profil Kedalaman</label>
                             <a href="https://api-webgis-kalteng.onrender.com/api/export-csv?lat=${lat}&lon=${lon}&param=${moData.type}&mode=depth" target="_blank" class="text-[9px] bg-green-600 text-white px-2 py-0.5 rounded hover:bg-green-700 transition cursor-pointer flex items-center gap-1 shadow-sm">📥 CSV</a>
                         </div>
                         <div class="relative h-48 w-full mt-1 bg-white border border-gray-100 rounded shadow-inner flex items-center justify-center">
@@ -1581,7 +1581,7 @@ function clearPolygonTool() {
     if (polyTooltip) { map.removeLayer(polyTooltip); polyTooltip = null; }
 }
 
-// Fungsi Download yang Diperbaiki (Bypass Blokir Keamanan Chrome)
+
 window.downloadShpFromPopup = function() {
     if (!drawnPolygonLayer) return;
     
@@ -1589,17 +1589,40 @@ window.downloadShpFromPopup = function() {
     // Bersihkan semua karakter aneh dan spasi agar file ZIP tidak rusak
     filename = filename.replace(/[^a-zA-Z0-9_]/g, '_'); 
 
-    let geojson = drawnPolygonLayer.toGeoJSON();
-    geojson.properties = { Nama: filename, Sumber: "WebGIS Kalteng ITB" };
+    let originalGeojson = drawnPolygonLayer.toGeoJSON();
+    let titikSudut = originalGeojson.geometry.coordinates[0];
     
-    let featureCollection = { type: 'FeatureCollection', features: [geojson] };
+    // --- KUNCI PERBAIKAN: BUAT TABEL MEMANJANG KE BAWAH ---
+    let featuresArray = [];
+
+    // Loop untuk membuat baris (row) sebanyak jumlah titik potong
+    for (let i = 0; i < titikSudut.length - 1; i++) {
+        let lon = parseFloat(titikSudut[i][0].toFixed(5));
+        let lat = parseFloat(titikSudut[i][1].toFixed(5));
+
+        // Kita buat fitur baru dengan geometri poligon yang sama,
+        // tapi propertinya (tabelnya) spesifik untuk 1 titik ini
+        let featureRow = {
+            type: "Feature",
+            geometry: originalGeojson.geometry, // Bentuknya tetap Poligon
+            properties: {
+                Nama: filename,
+                Sumber: "WebGIS ITB",
+                Titik: i + 1,       // Menghasilkan angka 1, 2, 3, dst.
+                Lat: lat,
+                Lon: lon
+            }
+        };
+        featuresArray.push(featureRow);
+    }
+
+    let featureCollection = { type: 'FeatureCollection', features: featuresArray };
     let options = { folder: filename, types: { polygon: filename } };
 
     try {
         const btnDownload = document.querySelector('button[onclick="window.downloadShpFromPopup()"]');
         if (btnDownload) btnDownload.textContent = "⏳ Memproses ZIP...";
         
-        // KUNCI PERBAIKAN: Gunakan shpwrite.zip() lalu buat link <a> manual agar tidak diblokir Chrome
         shpwrite.zip(featureCollection, options).then(function(content) {
             const link = document.createElement('a');
             link.href = 'data:application/zip;base64,' + content;
@@ -1960,9 +1983,13 @@ btnPrint.addEventListener('click', async () => {
         const pdfHeight = pdf.internal.pageSize.getHeight(); 
         const margin = 10; 
 
-        // TATA LETAK PETA
-        const mapMaxHeight = 135; 
-        const mapMaxWidth = pdfWidth - (margin * 2);
+// ==========================================
+        // KUNCI PERBAIKAN: TATA LETAK PETA & BINGKAI GRID PRESISI
+        // ==========================================
+        // Kita perkecil sedikit ukuran maksimal peta agar ada ruang luas 
+        // untuk teks koordinat di keempat sisinya (kiri, kanan, atas, bawah)
+        const mapMaxHeight = 125; 
+        const mapMaxWidth = pdfWidth - (margin * 2) - 25; 
 
         const mapProps = pdf.getImageProperties(mapImgData);
         const mapRatio = Math.min(mapMaxWidth / mapProps.width, mapMaxHeight / mapProps.height);
@@ -1970,15 +1997,81 @@ btnPrint.addEventListener('click', async () => {
         const finalMapHeight = mapProps.height * mapRatio;
         
         const mapX = (pdfWidth - finalMapWidth) / 2;
-        const mapY = margin;
+        const mapY = margin + 12; // Posisi peta diturunkan agar teks atas tidak menabrak batas kertas
 
+        // 1. Gambar Bingkai Utama dan Tempel Peta
         pdf.setDrawColor(0, 0, 0); 
         pdf.setLineWidth(0.5);
         pdf.rect(mapX, mapY, finalMapWidth, finalMapHeight);
         pdf.addImage(mapImgData, 'JPEG', mapX, mapY, finalMapWidth, finalMapHeight);
 
+        // ==========================================
+        // CETAK GRID KOORDINAT ALA ARCMAP (GRATICULE) FINAL PRESISI
+        // ==========================================
+        let bounds = map.getBounds();
+        let w = bounds.getWest();
+        let e = bounds.getEast();
+        let s = bounds.getSouth();
+        let n = bounds.getNorth();
+        
+        function toDMS(deg, isLat) { 
+            let d = Math.abs(deg);
+            let degInt = Math.floor(d);
+            let minFloat = (d - degInt) * 60;
+            let minInt = Math.floor(minFloat);
+            let secInt = Math.round((minFloat - minInt) * 60);
+            if (secInt === 60) { minInt++; secInt = 0; }
+            if (minInt === 60) { degInt++; minInt = 0; }
+            let dir = isLat ? (deg >= 0 ? 'N' : 'S') : (deg >= 0 ? 'E' : 'W');
+            
+            // KUNCI STABIL: Tambahkan angka 0 di depan jika menit/detik hanya 1 digit (misal 6" jadi 06")
+            let mStr = minInt.toString().padStart(2, '0');
+            let sStr = secInt.toString().padStart(2, '0');
+            return `${degInt}°${mStr}'${sStr}"${dir}`; 
+        }
+
+        // Ukuran font 6 agar ramping, elegan, dan proporsional
+        pdf.setFontSize(7); 
+        pdf.setTextColor(0, 0, 0); 
+        
+        let tickLen = 2; // Panjang strip (tick)
+        let stepsX = 4;  // Sumbu X (Atas/Bawah)
+        let stepsY = 3;  // Sumbu Y (Kiri/Kanan)
+
+        // --- A. KOORDINAT X (BUJUR - Atas & Bawah) ---
+        // Sumbu X dicetak full dari sudut ke sudut (i=0 sampai i=stepsX)
+        for (let i = 0; i <= stepsX; i++) {
+            let frac = i / stepsX;
+            let curLon = w + (e - w) * frac;
+            let posX = mapX + (finalMapWidth * frac);
+            let txtLon = toDMS(curLon, false);
+
+            pdf.line(posX, mapY, posX, mapY - tickLen);
+            pdf.line(posX, mapY + finalMapHeight, posX, mapY + finalMapHeight + tickLen);
+
+            pdf.text(txtLon, posX, mapY - tickLen - 1, { align: 'center', baseline: 'bottom' });
+            pdf.text(txtLon, posX, mapY + finalMapHeight + tickLen + 1, { align: 'center', baseline: 'top' });
+        }
+        // --- B. KOORDINAT Y (LINTANG - Kiri & Kanan) ---
+        // KUNCI ANTI-TABRAKAN: Mulai dari i=1 dan berakhir sebelum stepsY (Melewati sudut 0% dan 100%)
+        for (let i = 1; i < stepsY; i++) {
+            let frac = i / stepsY;
+            let curLat = n - (n - s) * frac; 
+            let posY = mapY + (finalMapHeight * frac);
+            let txtLat = toDMS(curLat, true);
+
+            pdf.line(mapX, posY, mapX - tickLen, posY);
+            pdf.line(mapX + finalMapWidth, posY, mapX + finalMapWidth + tickLen, posY);
+
+            // Teks Kiri (Barat): X digeser +5, lalu posY DITAMBAH 1.5 agar teks TURUN sejajar tengah garis
+            pdf.text(txtLat, mapX - tickLen + 5, posY + 5, { angle: 90, align: 'center', baseline: 'middle' });
+            
+            // Teks Kanan (Timur): X digeser +6, lalu posY DIKURANGI 1.5 agar teks NAIK sejajar tengah garis
+            pdf.text(txtLat, mapX + finalMapWidth + tickLen + 6, posY - 5, { angle: -90, align: 'center', baseline: 'middle' });
+        }
+        // ==============================================================
         // TATA LETAK LEGENDA
-        const legendY = mapY + finalMapHeight + 5; 
+        const legendY = mapY + finalMapHeight + 7; 
         const legendMaxHeight = pdfHeight - legendY - margin;
         const legendMaxWidth = pdfWidth - (margin * 2);
 
