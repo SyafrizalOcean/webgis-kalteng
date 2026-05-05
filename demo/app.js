@@ -903,7 +903,21 @@ window.buildUnifiedSidebar = async function(lat, lon, zonasiProps = null) {
     }
 
     if (typeof isThermalFrontActive !== 'undefined' && isThermalFrontActive) {
-        html += `<div class="mt-4 p-4 bg-blue-50 rounded-lg border-l-4 border-blue-600 shadow-sm"><h4 class="text-xs font-bold text-blue-900 uppercase mb-2">Informasi Thermal Front</h4><p class="text-[11px]">Zona front termal adalah indikator tingginya produktivitas perairan.</p></div>`;
+        html += `<div class="mt-4 p-4 bg-blue-50 rounded-lg border-l-4 border-blue-600 shadow-sm"><h4 class="text-xs font-bold text-blue-900 uppercase mb-2">Informasi Thermal Front</h4><p class="text-[11px]">Thermal front merupakan zona yang menggambarkan wilayah dengan gradien 
+temperatur, baik secara horizontal (Sholva et al., 2013) maupun vertikal (Belkin 
+dan Cornillon, 2003). Zona ini terbentuk di perairan yang memiliki perbedaan suhu 
+mencolok dengan daerah sekitarnya, dengan kisaran perbedaan sekitar 0,5°C dalam 
+jarak 3 km (Simbolon et al., 2013). Thermal front juga tergolong dalam zona 
+konvergensi massa air yang kaya akan nutrien, klorofil-a, fitoplankton, dan 
+zooplankton, sehingga berperan penting dalam meningkatkan produktivitas 
+perairan (Valvanis et al., 2005; Sholva et al., 2013). 
+Identifikasi thermal front sangat krusial bagi zona penangkapan ikan karena area 
+ini merupakan zona konvergensi massa air yang kaya akan nutrien, klorofil-a, 
+fitoplankton, dan zooplankton. Kandungan nutrien yang tinggi di thermal front 
+menarik berbagai organisme laut sebagai bagian dari rantai makanan, termasuk 
+ikan-ikan pelagis yang sering menjadi target perikanan. Selain itu, perbedaan suhu 
+yang mencolok di zona ini menciptakan kondisi lingkungan yang mendukung 
+keberagaman dan konsentrasi ikan dalam jumlah besar..</p></div>`;
     }
 
     if (!zonasiProps && !moData && !isThermalFrontActive) {
