@@ -210,10 +210,11 @@ def api_profile(param: str, lat: float, lon: float, time_index: int):
         ds.close()
         return {"profile": res}
     except: return {"profile": []}
-
+    
 @app.get("/api/timeseries")
 def get_timeseries(lat: float, lon: float, param: str, depth_index: int = 0):
     try:
+        # 1. Penanganan Hujan dan MSL
         if param in ['msl', 'hujan']:
             ds = ds_msl if param == 'msl' else ds_tp
             pt = ds[list(ds.data_vars)[0]].sel(latitude=lat, longitude=lon, method='nearest').values.tolist()
@@ -228,6 +229,16 @@ def get_timeseries(lat: float, lon: float, param: str, depth_index: int = 0):
                         prev = curr
             return {"values": vals}
         
+        # 2. ---> KODE PERBAIKAN: Penanganan Khusus ANGIN <---
+        if param == 'angin':
+            u = ds_10u[list(ds_10u.data_vars)[0]].sel(latitude=lat, longitude=lon, method='nearest')
+            v = ds_10v[list(ds_10v.data_vars)[0]].sel(latitude=lat, longitude=lon, method='nearest')
+            mag = np.sqrt(u.values**2 + v.values**2)
+            vals = [round(float(m), 2) if not np.isnan(m) else None for m in mag]
+            return {"values": vals}
+        # -----------------------------------------------------
+
+        # 3. Penanganan Data Oseanografi (Suhu, Salinitas, Arus, Gelombang, SSH)
         ds = get_dataset(param, depth_index)
         var_name = 'VHM0' if param == 'gelombang' else 'zos' if param == 'ssh' else 'thetao' if param == 'suhu' else 'so' if param == 'salinitas' else 'uo'
         
@@ -241,8 +252,10 @@ def get_timeseries(lat: float, lon: float, param: str, depth_index: int = 0):
             pt = ds[var_name].sel(latitude=lat, longitude=lon, method='nearest')
             if 'depth' in pt.dims: pt = pt.isel(depth=depth_index)
             vals = [round(float(v), 2) if not np.isnan(v) else None for v in pt.values]
+        
         ds.close()
         return {"values": vals}
+    
     except Exception as e: return {"error": str(e)}
 
 @app.get("/api/thermal-front/{time_index}")
