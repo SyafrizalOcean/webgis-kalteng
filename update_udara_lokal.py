@@ -4,7 +4,9 @@ import os
 import gc
 
 os.makedirs("data_nc", exist_ok=True) # Kita simpan langsung ke folder data_nc
-client = Client(source="ecmwf")
+
+# GANTI BARIS INI: Mengalihkan jalur unduhan ke peladen cloud agar tidak terkena limit 429
+client = Client(source="azure")
 
 waktu_jam = list(range(0, 145, 3)) + list(range(150, 241, 6))
 parameter_cuaca = ["10u", "10v", "msl", "tp"]
