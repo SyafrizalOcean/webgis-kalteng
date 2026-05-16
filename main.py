@@ -10,6 +10,11 @@ import datetime
 import urllib.parse
 import math
 
+# ==========================================
+# MEMORI CACHE UNTUK DATA PASUT (BACKUP JIKA SRGI ERROR)
+# ==========================================
+tide_cache = {}
+
 app = FastAPI(title="MetOcean API Kalteng - Master Hybrid")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
@@ -314,10 +319,42 @@ def get_tide_srgi(station_code: str):
         xsrf = urllib.parse.unquote(session.cookies.get('XSRF-TOKEN', ''))
         now = datetime.datetime.now()
         api_url = f"https://srgi.big.go.id/tides_data/pasut_{station_code}?new=true&date={now.year}/{now.month}/{now.day}&timestamp={int(now.timestamp())}"
+        
+        # Tarik data dari SRGI dengan batas waktu (timeout) 15 detik
         res = session.get(api_url, headers={"User-Agent": "Mozilla", "X-XSRF-TOKEN": xsrf}, timeout=15).json()
-        if isinstance(res, str): return {"error": "Server BIG SRGI sedang maintenance/gangguan."}
+        
+        if isinstance(res, str) or 'error' in res:
+            raise Exception("Server BIG SRGI sedang maintenance/gangguan.")
+            
         data_arr = res.get('predictions', []) or res.get('results', [])
         elevs = [float(i.get('RAD1') or i.get('RAD2') or i.get('PRS') or 0) for i in data_arr]
-        if not elevs: return {"error": "Sensor mati / Data kosong"}
-        return {"station": station_code, "times": [i.get('ts') for i in data_arr], "elevations": elevs, "hat": round(max(elevs), 2), "lat": round(min(elevs), 2)}
-    except: return {"error": "Koneksi ke SRGI Terputus"}
+        
+        if not elevs: 
+            raise Exception("Sensor mati / Data kosong dari pusat.")
+            
+        # ==========================================
+        # JIKA SUKSES: Susun data dan SIMPAN ke dalam memori Cache!
+        # ==========================================
+        success_data = {
+            "station": station_code, 
+            "times": [i.get('ts') for i in data_arr], 
+            "elevations": elevs, 
+            "hat": round(max(elevs), 2), 
+            "lat": round(min(elevs), 2),
+            "is_cached": False # Penanda bahwa ini data fresh (asli)
+        }
+        
+        tide_cache[station_code] = success_data
+        return success_data
+        
+    except Exception as e: 
+        # ==========================================
+        # JIKA GAGAL / ERROR: Cek apakah kita punya data cadangan di memori?
+        # ==========================================
+        if station_code in tide_cache:
+            backup_data = tide_cache[station_code].copy()
+            backup_data["is_cached"] = True # Beri penanda bahwa ini data memori masa lalu
+            return backup_data
+        else:
+            # Kalau server baru nyala dan langsung error (belum punya cache)
+            return {"error": f"Koneksi ke SRGI terputus dan belum ada memori data terakhir. ({str(e)})"}

@@ -2648,8 +2648,8 @@ document.getElementById('btn-tide-station').addEventListener('click', function()
         });
         
         // Arahkan kamera
-        let groupBounds = L.featureGroup(tideLayerGroup.getLayers()).getBounds();
-        map.fitBounds(groupBounds, { padding: [50, 50] });
+        //let groupBounds = L.featureGroup(tideLayerGroup.getLayers()).getBounds();
+        //map.fitBounds(groupBounds, { padding: [50, 50] });
     }
 });
 
@@ -2676,7 +2676,18 @@ async function buildTideSidebar(stationName, lat, lon, stationCode) {
              return; // Hentikan proses menggambar grafik
         }
 
+        let warningHTML = "";
+        if (data.is_cached) {
+            warningHTML = `
+                <div class="bg-yellow-100 border border-yellow-300 text-yellow-800 text-[10px] p-1.5 rounded mb-3 font-bold flex items-center gap-2 shadow-inner">
+                    <span class="animate-pulse text-lg">⚠️</span> 
+                    <span>Server pusat BIG sedang lambat/gangguan. Menampilkan data rekaman terakhir dari server.</span>
+                </div>
+            `;
+        }
+
         let html = `
+            ${warningHTML}
             <div class="border-b pb-2 mb-3 border-blue-100 flex justify-between items-start">
                 <div>
                     <label class="text-[10px] font-bold text-blue-900 uppercase">Stasiun Observasi</label>
