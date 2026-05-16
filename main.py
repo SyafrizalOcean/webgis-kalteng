@@ -14,29 +14,31 @@ app = FastAPI(title="MetOcean API Kalteng - Master Hybrid")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
 print("🚀 Server Booting: Membuka Data ECMWF & Batimetri...")
-# File Udara (Tetap menggunakan file ECMWF asli)
 ds_10u = xr.open_dataset('data_nc/10u_kalteng.nc')
 ds_10v = xr.open_dataset('data_nc/10v_kalteng.nc')
 ds_msl = xr.open_dataset('data_nc/msl_kalteng.nc')
 
 # ==========================================
-# [PERBAIKAN] DATA HUJAN ECMWF (DE-AKUMULASI GLOBAL)
+# [PERBAIKAN FINAL] DATA HUJAN ECMWF (INTERPOLASI AKUMULATIF PER JAM)
 # ==========================================
-ds_tp = xr.open_dataset('data_nc/tp_kalteng.nc')
+ds_tp_raw = xr.open_dataset('data_nc/tp_kalteng.nc')
 
-# 1. Konversi langsung dari meter ke milimeter (mm)
+# 1. Buat rentang waktu lengkap 240 jam (tiap 1 jam tanpa bolong)
+start_time = ds_tp_raw.time.values[0]
+hourly_times = [start_time + np.timedelta64(i, 'h') for i in range(240)]
+
+# 2. Interpolasi data saat MASIH BERUPA TOTAL AKUMULASI
+# Ini akan membagi volume hujan 3 jam perlahan-lahan ke jam di antaranya
+ds_tp = ds_tp_raw.interp(time=hourly_times, method='linear', kwargs={'fill_value': 'extrapolate'})
+
+# 3. Konversi murni dari meter ke milimeter
 ds_tp['tp'] = ds_tp['tp'] * 1000.0
 
-# 2. Hitung selisih antar waktu agar jadi intensitas curah hujan per 3 jam
+# 4. De-akumulasi (Sekarang selisihnya murni menjadi curah hujan mm/jam!)
 tp_diff = ds_tp['tp'].diff(dim='time')
-
-# 3. Gabungkan lagi dengan waktu indeks ke-0
 ds_tp['tp'] = xr.concat([ds_tp['tp'].isel(time=[0]), tp_diff], dim='time')
-
-# 4. Buang anomali nilai minus (karena siklus reset ECMWF)
 ds_tp['tp'] = ds_tp['tp'].where(ds_tp['tp'] >= 0, 0)
 # ==========================================
-
 def load_batimetri(file_path):
     try:
         da = rioxarray.open_rasterio(file_path)

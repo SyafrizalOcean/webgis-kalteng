@@ -126,11 +126,11 @@ const configs = {
         css: "linear-gradient(to right, #053061, #2166ac, #4393c3, #92c5de, #d1e5f0, #f7f7f7, #fddbc7, #f4a582, #d6604d, #b2182b, #67001f)" 
     },
     hujan: { 
-        title: "Curah Hujan (mm/3 Jam)", 
-        // Skala diturunkan ke 20mm agar warna gerimis pun terlihat
-        scale: chroma.scale(['#38bdf8', '#2563eb', '#1e3a8a', '#4c1d95']).domain([0.1, 20]), 
-        min: "0 mm", max: ">20 mm", 
-        css: "linear-gradient(to right, transparent, #38bdf8, #2563eb, #1e3a8a, #4c1d95)" 
+        title: "Curah Hujan (mm/Jam)", 
+        // SKALA BMKG: Ringan(<5), Sedang(5-10), Lebat(10-20), Sangat Lebat(>20)
+        scale: chroma.scale(['#38bdf8', '#2563eb', '#f59e0b', '#dc2626', '#7e22ce']).domain([0.1, 5, 10, 20, 30]), 
+        min: "Ringan", max: "Ekstrem", 
+        css: "linear-gradient(to right, transparent, #38bdf8 20%, #2563eb 40%, #f59e0b 60%, #dc2626 80%, #7e22ce 100%)" 
     },
     msl: { 
         title: "Tekanan Udara (MSLP)", 
@@ -1091,46 +1091,79 @@ keberagaman dan konsentrasi ikan dalam jumlah besar..</p></div>`;
                 if(timeChartInstance) timeChartInstance.destroy();
                 timeChartInstance = new Chart(document.getElementById('chartTimeSeries').getContext('2d'), {
                     type: 'line', 
-                    data: { labels: labelsTime, datasets: [{ label: moData.title, data: dataTime, borderColor: '#2563eb', backgroundColor: 'rgba(37, 99, 235, 0.2)', fill: true, tension: 0.4, pointRadius: dataLength === 240 ? 0 : 2 }] },
+                    data: { 
+                        labels: labelsTime, 
+                        datasets: [{ 
+                            label: moData.title, 
+                            data: dataTime, 
+                            borderColor: '#2563eb', 
+                            backgroundColor: 'rgba(37, 99, 235, 0.2)', 
+                            fill: true, 
+                            tension: 0.4, 
+                            
+                            // ==========================================
+                            // KUNCI GRAFIK BMKG: Warna Titik Otomatis!
+                            // ==========================================
+                            pointBackgroundColor: function(context) {
+                                let val = context.raw;
+                                if (moData.type === 'hujan' && val !== null) {
+                                    if (val >= 20) return '#7e22ce'; // Ungu (Sangat Lebat/Ekstrem)
+                                    if (val >= 10) return '#dc2626'; // Merah (Lebat)
+                                    if (val >= 5) return '#f59e0b';  // Oranye (Sedang)
+                                    if (val >= 0.1) return '#38bdf8'; // Biru Muda (Ringan)
+                                    return 'rgba(37, 99, 235, 0.2)'; // Tidak Hujan
+                                }
+                                return '#2563eb'; // Warna standar untuk parameter lain
+                            },
+                            
+                            // HAPUS RUMUS LAMA, GANTI DENGAN 3 BARIS INI:
+                            pointRadius: 1.5,        // Ukuran titik pas (tidak terlalu besar/kecil)
+                            pointHoverRadius: 6,     // Membesar saat disentuh mouse
+                            pointHitRadius: 15       // Jarak magnet sensor mouse diperbesar agar gampang di-hover!
+                        }] 
+                    },
                     options: { 
                         maintainAspectRatio: false, 
                         plugins: { 
                             legend: { display: false },
-                            
-                            // ==========================================
-                            // KUNCI PERBAIKAN: Setelan Tooltip (Kotak Hitam)
-                            // ==========================================
                             tooltip: {
-                                backgroundColor: 'rgba(30, 58, 138, 0.95)', // Warna biru dongker transparan elegan
+                                backgroundColor: 'rgba(30, 58, 138, 0.95)',
                                 titleFont: { size: 12, weight: 'bold' },
                                 bodyFont: { size: 11 },
                                 padding: 10,
                                 cornerRadius: 6,
                                 displayColors: true,
                                 callbacks: {
-                                    // 1. Paksa memunculkan Waktu (Jam & Hari) di baris pertama
                                     title: function(tooltipItems) {
                                         return "🕒 Waktu: " + tooltipItems[0].label;
                                     },
-                                    // 2. Format baris kedua (Angka + Satuan Otomatis)
                                     label: function(context) {
-                                        let val = context.raw; // KUNCI: Ambil data murni dari array
-                                        
-                                        // Jika datanya kosong (Daratan), tampilkan info yang jelas!
+                                        let val = context.raw;
                                         if (val === null || val === undefined) {
                                             return "Tidak ada data (Area Darat)";
                                         }
 
                                         let unit = "";
-                                        if (moData.type === 'hujan') unit = " mm/3 Jam";
+                                        let status_bmkg = ""; // Variabel penampung teks BMKG
+                                        
+                                        if (moData.type === 'hujan') {
+                                            unit = " mm/Jam";
+                                            // ==========================================
+                                            // KLASIFIKASI TEKS BMKG DI KOTAK HITAM
+                                            // ==========================================
+                                            if (val > 20) status_bmkg = " (Sangat Lebat)";
+                                            else if (val >= 10) status_bmkg = " (Lebat)";
+                                            else if (val >= 5) status_bmkg = " (Sedang)";
+                                            else if (val >= 0.1) status_bmkg = " (Ringan)";
+                                            else status_bmkg = " (Berawan/Cerah)";
+                                        }
                                         else if (moData.type === 'suhu') unit = " °C";
                                         else if (moData.type === 'salinitas') unit = " PSU";
                                         else if (moData.type === 'arus' || moData.type === 'angin') unit = " m/s";
                                         else if (moData.type === 'msl') unit = " hPa";
                                         else unit = " m"; 
                                         
-                                        // Potong rapi menjadi 2 angka di belakang koma
-                                        return `${context.dataset.label}: ${val.toFixed(2)}${unit}`;
+                                        return `${context.dataset.label}: ${val.toFixed(2)}${unit}${status_bmkg}`;
                                     }
                                 }
                             }
@@ -1498,8 +1531,8 @@ function formatDistance(meters) {
 function clearMeasurement() {
     isMeasuring = false;
     measurePoints = [];
-    map.getContainer().style.cursor = ''; // Kembalikan kursor normal
-    map.doubleClickZoom.enable();         // Aktifkan zoom dblclick lagi
+    map.getContainer().style.cursor = ''; 
+    map.doubleClickZoom.enable();
     btnMeasure.classList.remove('bg-yellow-300', 'text-blue-900', 'shadow-inner');
     
     // Matikan sensor mouse
@@ -1514,7 +1547,7 @@ function clearMeasurement() {
     if (measureResultLabel) { map.removeLayer(measureResultLabel); measureResultLabel = null; }
 }
 
-// Daftarkan ke Window agar tombol "Hapus" di HTML bisa memanggilnya
+// PASTIKAN BARIS INI ADA AGAR BISA DIPANGGIL OLEH TOMBOL DI HTML LEAFLET!
 window.clearMeasurement = clearMeasurement;
 
 // Aksi ketika tombol penggaris diklik
@@ -2736,12 +2769,10 @@ setTimeout(async () => {
     if (foundIndex !== -1) {
         const notif = document.createElement('div');
         notif.id = 'auto-notif-thermal';
-        // Ubah padding kanan (pr-2) agar tombol silang pas di pinggir
         notif.className = "fixed top-5 left-1/2 transform -translate-x-1/2 z-[999999] bg-gradient-to-r from-red-700 to-red-500 backdrop-blur-md text-white pl-6 pr-2 py-2 rounded-full shadow-[0_10px_25px_rgba(220,38,38,0.6)] border border-white/30 font-bold flex items-center gap-3 animate-bounce";
         
         let waktuDitemukan = hourlyDates[foundIndex]; 
         
-        // HTML Dalam Notifikasi: Dipisah antara Tombol Klik Peta dan Tombol Silang
         notif.innerHTML = `
             <div class="flex items-center gap-3 cursor-pointer hover:scale-105 transition-transform" id="btn-go-thermal" title="Klik untuk melihat di peta">
                 <span class="text-2xl animate-pulse">📡</span> 
@@ -2752,8 +2783,20 @@ setTimeout(async () => {
         
         document.body.appendChild(notif);
 
+        // ==========================================
+        // FUNGSI UNTUK MENGHILANGKAN NOTIFIKASI
+        // ==========================================
+        function removeNotif() {
+            if (document.getElementById('auto-notif-thermal')) {
+                notif.remove();
+                // Cabut juga pendeteksi klik global agar memori tidak bocor
+                document.removeEventListener('click', handleGlobalClick);
+            }
+        }
+
         // AKSI 1: Jika tulisan/ikon radarnya diklik (Meluncur ke TKP)
-        document.getElementById('btn-go-thermal').onclick = () => {
+        document.getElementById('btn-go-thermal').onclick = (e) => {
+            e.stopPropagation();
             const timeSlider = document.getElementById('timeSlider');
             if (timeSlider) {
                 timeSlider.value = foundIndex;
@@ -2764,14 +2807,28 @@ setTimeout(async () => {
             if (btnThermal && typeof isThermalFrontActive !== 'undefined' && !isThermalFrontActive) {
                 btnThermal.click(); 
             }
-            notif.remove(); 
+            removeNotif(); 
         };
 
-        // AKSI 2: Jika tombol silang (✖) diklik (Hanya Menutup Notifikasi)
+        // AKSI 2: Jika tombol silang (✖) diklik 
         document.getElementById('btn-close-notif').onclick = (e) => {
-            e.stopPropagation(); // Mencegah terkliknya aksi 1 secara tidak sengaja
-            notif.remove(); // Notifikasi hilang, peta tidak berubah
+            e.stopPropagation(); 
+            removeNotif(); 
         };
+
+        // AKSI 3: Jika layar/area lain diklik, hilangkan notifikasi otomatis!
+        function handleGlobalClick(e) {
+            // Jika yang diklik adalah notifikasi itu sendiri (atau isinya), biarkan saja
+            if (notif.contains(e.target)) return;
+            
+            // Jika klik terjadi di luar notifikasi, matikan!
+            removeNotif();
+        }
+
+        // Tunda pemasangan sensor 100ms agar klik awal tidak langsung menutup notifikasinya
+        setTimeout(() => {
+            document.addEventListener('click', handleGlobalClick);
+        }, 100);
         
         console.log("✅ Radar Sukses: Thermal Front otomatis ditemukan pada index", foundIndex);
     } else {
