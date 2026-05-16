@@ -18,7 +18,24 @@ print("🚀 Server Booting: Membuka Data ECMWF & Batimetri...")
 ds_10u = xr.open_dataset('data_nc/10u_kalteng.nc')
 ds_10v = xr.open_dataset('data_nc/10v_kalteng.nc')
 ds_msl = xr.open_dataset('data_nc/msl_kalteng.nc')
+
+# ==========================================
+# [PERBAIKAN] DATA HUJAN ECMWF (DE-AKUMULASI GLOBAL)
+# ==========================================
 ds_tp = xr.open_dataset('data_nc/tp_kalteng.nc')
+
+# 1. Konversi langsung dari meter ke milimeter (mm)
+ds_tp['tp'] = ds_tp['tp'] * 1000.0
+
+# 2. Hitung selisih antar waktu agar jadi intensitas curah hujan per 3 jam
+tp_diff = ds_tp['tp'].diff(dim='time')
+
+# 3. Gabungkan lagi dengan waktu indeks ke-0
+ds_tp['tp'] = xr.concat([ds_tp['tp'].isel(time=[0]), tp_diff], dim='time')
+
+# 4. Buang anomali nilai minus (karena siklus reset ECMWF)
+ds_tp['tp'] = ds_tp['tp'].where(ds_tp['tp'] >= 0, 0)
+# ==========================================
 
 def load_batimetri(file_path):
     try:
@@ -91,10 +108,14 @@ def spatial_interp_2d(slice_2d):
 def get_grid_ecmwf(ds, time_index):
     var_name = list(ds.data_vars)[0]
     target_time = ds.time.values[0] + np.timedelta64(time_index, 'h')
-    slice_2d = ds[var_name].interp(time=target_time, method='nearest')
+    
+    # ==========================================
+    # KUNCI PERBAIKAN: Interpolasi Linear & Extrapolate
+    # ==========================================
+    slice_2d = ds[var_name].interp(time=target_time, method='linear', kwargs={'fill_value': 'extrapolate'})
+    
     refined = spatial_interp_2d(slice_2d)
     return {"nx": len(refined.longitude.values), "ny": len(refined.latitude.values), "lo1": float(refined.longitude.values[0]), "la1": float(refined.latitude.values[0]), "dx": 0.033, "dy": 0.033, "zs": [round(float(v), 2) if not np.isnan(v) else None for v in refined.values.flatten()]}
-
 @app.get("/api/msl/{time_index}")
 def api_msl(time_index: int):
     data = get_grid_ecmwf(ds_msl, time_index)
@@ -103,25 +124,24 @@ def api_msl(time_index: int):
 
 @app.get("/api/hujan/{time_index}")
 def api_hujan(time_index: int):
-    curr = get_grid_ecmwf(ds_tp, time_index)
-    if time_index == 0:
-        curr['zs'] = [round(v * 1000, 2) if v is not None else None for v in curr['zs']]
-    else:
-        prev = get_grid_ecmwf(ds_tp, time_index - 1)
-        curr['zs'] = [round(max(0, (c - p) * 1000), 2) if c is not None and p is not None else None for c, p in zip(curr['zs'], prev['zs'])]
-    return curr
+    # Data ds_tp sudah bersih, akurat dengan desimal, dan berformat mm dari memori!
+    return get_grid_ecmwf(ds_tp, time_index)
 
 @app.get("/api/angin/{time_index}")
 def api_angin(time_index: int):
     target_time = ds_10u.time.values[0] + np.timedelta64(time_index, 'h')
-    u_ref = spatial_interp_2d(ds_10u[list(ds_10u.data_vars)[0]].interp(time=target_time, method='nearest'))
-    v_ref = spatial_interp_2d(ds_10v[list(ds_10v.data_vars)[0]].interp(time=target_time, method='nearest'))
+    
+    # ==========================================
+    # KUNCI PERBAIKAN: Linear Interpolasi Vektor U dan V
+    # ==========================================
+    u_ref = spatial_interp_2d(ds_10u[list(ds_10u.data_vars)[0]].interp(time=target_time, method='linear', kwargs={'fill_value': 'extrapolate'}))
+    v_ref = spatial_interp_2d(ds_10v[list(ds_10v.data_vars)[0]].interp(time=target_time, method='linear', kwargs={'fill_value': 'extrapolate'}))
+    
     lats, lons = u_ref.latitude.values, u_ref.longitude.values
     return [
         {"header": {"parameterCategory": 2, "parameterNumber": 2, "lo1": float(lons[0]), "la1": float(lats[0]), "dx": 0.033, "dy": 0.033, "nx": len(lons), "ny": len(lats)}, "data": [0 if np.isnan(v) else float(v) for v in u_ref.values.flatten()]},
         {"header": {"parameterCategory": 2, "parameterNumber": 3, "lo1": float(lons[0]), "la1": float(lats[0]), "dx": 0.033, "dy": 0.033, "nx": len(lons), "ny": len(lats)}, "data": [0 if np.isnan(v) else float(v) for v in v_ref.values.flatten()]}
     ]
-
 # ==========================================
 # API OCEAN (HYBRID) - ANTI CRASH
 # ==========================================
@@ -214,29 +234,30 @@ def api_profile(param: str, lat: float, lon: float, time_index: int):
 @app.get("/api/timeseries")
 def get_timeseries(lat: float, lon: float, param: str, depth_index: int = 0):
     try:
-        # 1. Penanganan Hujan dan MSL
+        # 1. Penanganan Hujan dan MSL (DIBUAT DETAIL PER JAM)
         if param in ['msl', 'hujan']:
             ds = ds_msl if param == 'msl' else ds_tp
-            pt = ds[list(ds.data_vars)[0]].sel(latitude=lat, longitude=lon, method='nearest').values.tolist()
+            var_name = list(ds.data_vars)[0]
+            
+            # KUNCI: Buat array target waktu dari jam ke-0 sampai 239 (per 1 jam)
+            target_times = [ds.time.values[0] + np.timedelta64(i, 'h') for i in range(240)]
+            
+            # Tarik titik di peta, lalu interpolasi linear secara waktu ke 240 jam!
+            pt = ds[var_name].sel(latitude=lat, longitude=lon, method='nearest').interp(time=target_times, method='linear', kwargs={'fill_value': 'extrapolate'}).values.tolist()
+            
             if param == 'msl': vals = [round(v/100, 1) if not np.isnan(v) else None for v in pt]
-            else: 
-                vals, prev = [], 0
-                for i, v in enumerate(pt):
-                    if np.isnan(v): vals.append(None)
-                    else:
-                        curr = v * 1000
-                        vals.append(round(max(0, curr - prev) if i > 0 else curr, 2))
-                        prev = curr
+            else: vals = [round(v, 2) if not np.isnan(v) else None for v in pt]
             return {"values": vals}
         
-        # 2. ---> KODE PERBAIKAN: Penanganan Khusus ANGIN <---
+        # 2. Penanganan Khusus ANGIN (DIBUAT DETAIL PER JAM)
         if param == 'angin':
-            u = ds_10u[list(ds_10u.data_vars)[0]].sel(latitude=lat, longitude=lon, method='nearest')
-            v = ds_10v[list(ds_10v.data_vars)[0]].sel(latitude=lat, longitude=lon, method='nearest')
-            mag = np.sqrt(u.values**2 + v.values**2)
-            vals = [round(float(m), 2) if not np.isnan(m) else None for m in mag]
+            target_times = [ds_10u.time.values[0] + np.timedelta64(i, 'h') for i in range(240)]
+            
+            u = ds_10u[list(ds_10u.data_vars)[0]].sel(latitude=lat, longitude=lon, method='nearest').interp(time=target_times, method='linear', kwargs={'fill_value': 'extrapolate'}).values
+            v = ds_10v[list(ds_10v.data_vars)[0]].sel(latitude=lat, longitude=lon, method='nearest').interp(time=target_times, method='linear', kwargs={'fill_value': 'extrapolate'}).values
+            
+            vals = [round(math.sqrt(u[i]**2 + v[i]**2), 2) if not np.isnan(u[i]) else None for i in range(240)]
             return {"values": vals}
-        # -----------------------------------------------------
 
         # 3. Penanganan Data Oseanografi (Suhu, Salinitas, Arus, Gelombang, SSH)
         ds = get_dataset(param, depth_index)

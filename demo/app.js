@@ -126,10 +126,11 @@ const configs = {
         css: "linear-gradient(to right, #053061, #2166ac, #4393c3, #92c5de, #d1e5f0, #f7f7f7, #fddbc7, #f4a582, #d6604d, #b2182b, #67001f)" 
     },
     hujan: { 
-        title: "Curah Hujan (mm)", 
-        scale: chroma.scale(['#ffffff', '#68a5ef', '#428de8', '#195ce3', '#0e5d7c', '#0b3e7b', '#061d5d']).domain([0, 50]), 
-        min: "0 mm", max: ">50 mm", 
-        css: "linear-gradient(to right, #ffffff, #68a5ef, #428de8, #195ce3, #0e5d7c, #0b3e7b, #061d5d)" 
+        title: "Curah Hujan (mm/3 Jam)", 
+        // Skala diturunkan ke 20mm agar warna gerimis pun terlihat
+        scale: chroma.scale(['#38bdf8', '#2563eb', '#1e3a8a', '#4c1d95']).domain([0.1, 20]), 
+        min: "0 mm", max: ">20 mm", 
+        css: "linear-gradient(to right, transparent, #38bdf8, #2563eb, #1e3a8a, #4c1d95)" 
     },
     msl: { 
         title: "Tekanan Udara (MSLP)", 
@@ -350,6 +351,7 @@ function showDetail(props) {
     const sidebar = document.getElementById('detail-sidebar');
     const content = document.getElementById('sidebar-content');
     sidebar.classList.remove('-translate-x-[120%]');
+    sidebar.classList.add('translate-x-8');
 
     // DETEKTIF KATEGORI: Cari value mana yang ada di dalam kamus warna 'styleZonasi'
     let kategoriKawasan = 'Zonasi Pesisir';
@@ -394,7 +396,17 @@ function showDetail(props) {
 }
 
 function closeSidebar() {
-    document.getElementById('detail-sidebar').classList.add('-translate-x-[120%]');
+    const detailSidebar = document.getElementById('detail-sidebar');
+    if(detailSidebar) {
+        detailSidebar.classList.add('-translate-x-[120%]'); // Sembunyikan sidebar
+        
+        // Tarik balik Widget Cuaca ke kiri
+        const weatherWidget = document.getElementById('weather-widget');
+        if (weatherWidget) {
+            weatherWidget.classList.remove('md:left-[440px]');
+            weatherWidget.classList.add('md:left-4');
+        }
+    }
 }
 
 // ==========================================
@@ -529,6 +541,14 @@ async function renderActiveLayer(dayIndex) {
                 for (let i = 0; i < nx; i++) {
                     const idx = j * nx + i;
                     const val = zs[idx];
+                    
+                    // ==========================================
+                    // KUNCI PERBAIKAN TAMPILAN HUJAN
+                    // Jika nilai hujannya 0, LEWATI! Jangan gambar kotaknya.
+                    // Ini membuat peta transparan dengan rapi dan anti nge-lag!
+                    // ==========================================
+                    if (activeDataType === 'hujan' && val <= 0.1) continue;
+
                     if (val !== null && val !== undefined) {
                         const lat = la1 - j * dy;
                         const lon = lo1 + i * dx;
@@ -557,6 +577,9 @@ async function renderActiveLayer(dayIndex) {
 
         if (needsArusOverlay || needsAnginOverlay) {
             try {
+                // Simpan dulu nama layer yang sedang aktif saat ini
+                const layerSaatLoading = activeDataType;
+
                 let overlayUrl = '';
                 if (needsArusOverlay) {
                     // KUNCI ANTI-404: Pastikan URL arus selalu memiliki angka kedalaman di ujungnya!
@@ -572,6 +595,16 @@ async function renderActiveLayer(dayIndex) {
                 if (!overlayRes.ok) throw new Error("Gagal menarik data partikel penghias");
                 
                 const overlayData = await overlayRes.json();
+
+                // ====================================================
+                // 🛡️ PENJAGA ANTI-HANTU (TAMBAHKAN INI)
+                // Cek apakah selama proses loading tadi, user keburu nutup 
+                // atau ganti menu. Kalau iya, BATALKAN menggambar!
+                if (activeDataType !== layerSaatLoading || !activeDataType) {
+                    console.log("Membatalkan render animasi karena menu keburu ditutup/diganti.");
+                    return; 
+                }
+                // ====================================================
 
                 // Timpa animasi transparan ke atas peta kotak-kotak
                 velocityLayer = L.velocityLayer({
@@ -595,6 +628,8 @@ async function renderActiveLayer(dayIndex) {
         document.getElementById('displayTime').textContent = "Error memuat data";
     }
 }
+
+
 // ==========================================
 // 7. KLIK MENU METOCEAN & ZONASI
 // ==========================================
@@ -767,21 +802,46 @@ timeSlider.addEventListener('input', function() {
 
 const playPauseBtn = document.getElementById('play-pause-btn');
 
+// ==========================================
+// 8. LOGIKA PLAY & SLIDER WAKTU (VERSI CERDAS)
+// ==========================================
 function stopAnimation() {
-    clearInterval(animationInterval);
     isPlaying = false;
+    clearTimeout(animationInterval); // Ganti dari clearInterval
     playPauseBtn.innerHTML = `<svg class="w-8 h-8" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd"></path></svg>`;
+}
+
+async function runAnimationLoop() {
+    if (!isPlaying) return;
+
+    let currentVal = parseInt(timeSlider.value);
+    let maxVal = parseInt(timeSlider.max) || 239;
+    let nextVal = (currentVal >= maxVal) ? 0 : currentVal + 1; 
+    
+    // Update posisi slider UI
+    timeSlider.value = nextVal;
+    currentSliderIndex = nextVal;
+    updateTooltipPosition();
+    
+    // KUNCI PERBAIKAN: Gunakan 'await' agar sistem MENUNGGU proses render selesai!
+    if (activeDataType) {
+        document.getElementById('displayTime').textContent = `Prakiraan: ${hourlyDates[currentSliderIndex]}`;
+        await renderActiveLayer(currentSliderIndex); 
+    }
+    if (isThermalFrontActive) {
+        await renderThermalFront(currentSliderIndex);
+    }
+
+    // Setelah render selesai 100%, tunggu 800ms baru pindah ke frame berikutnya
+    if (isPlaying) {
+        animationInterval = setTimeout(runAnimationLoop, 800); 
+    }
 }
 
 function startAnimation() {
     isPlaying = true;
     playPauseBtn.innerHTML = `<svg class="w-8 h-8" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v4a1 1 0 11-2 0V8z" clip-rule="evenodd"></path></svg>`;
-    animationInterval = setInterval(() => {
-        let currentVal = parseInt(timeSlider.value);
-        let nextVal = (currentVal >= 239) ? 0 : currentVal + 1; 
-        timeSlider.value = nextVal;
-        timeSlider.dispatchEvent(new Event('input')); 
-    }, 1500); 
+    runAnimationLoop();
 }
 
 // Ganti event listener playPauseBtn di app.js kamu
@@ -825,7 +885,20 @@ function getMetOceanDataMath(lat, lon) {
 
 // 2. Mesin Pembangun Sidebar (DENGAN LOGIKA PENYARINGAN KEDALAMAN)
 window.buildUnifiedSidebar = async function(lat, lon, zonasiProps = null) {
-    detailSidebar.classList.remove('-translate-x-[120%]'); 
+    // 1. Munculkan sidebar di posisi aslinya (kiri)
+    detailSidebar.classList.remove('-translate-x-[120%]');
+    detailSidebar.classList.remove('left-[350px]', 'left-[360px]'); // Bersihkan sisa experimen kita tadi
+    detailSidebar.classList.add('left-4');
+
+    // ==========================================
+    // LOGIKA GESER WIDGET CUACA KE KANAN
+    // ==========================================
+    const weatherWidget = document.getElementById('weather-widget');
+    if (weatherWidget && typeof isWeatherActive !== 'undefined' && isWeatherActive) {
+        weatherWidget.classList.remove('md:left-4');
+        weatherWidget.classList.add('md:left-[440px]'); // Geser melewati sidebar grafik
+    }
+
     let html = '';
 
     if (zonasiProps) {
@@ -959,18 +1032,31 @@ keberagaman dan konsentrasi ikan dalam jumlah besar..</p></div>`;
                     }
                 } else if (dataLength > 100) {
                     // KUNCI PERBAIKAN: Tangkap data tiap jam walau jumlahnya tidak pas 240 (misal 241 atau 239)
+// ==========================================
+                // KUNCI PERBAIKAN GRAFIK: (Langsung Baca 240 Jam)
+                // ==========================================
                     let limit = Math.min(dataLength, 240);
-                    for (let i = 0; i < limit; i++) {
-                        labelsTime.push(hourlyDates[i]);
-                        let val = tsData.values[i];
-                        if (['arus', 'angin'].includes(moData.type)) val = Math.abs(val); 
+                    for (let h = 0; h < limit; h++) {
+                        labelsTime.push(hourlyDates[h]);
+                        let val = tsData.values[h];
+                        
+                        // Cek jika nilainya valid (bukan daratan/null)
+                        if (val !== null && val !== undefined) {
+                            // Untuk arus dan angin, kita ambil nilai positifnya (magnitudo)
+                            if (['arus', 'angin'].includes(moData.type)) {
+                                val = Math.abs(val);
+                            }
+                        }
                         dataTime.push(val);
                     }
+                // ==========================================
                 } else {
                     // Logika backup untuk data ECMWF (81 titik: per 3 jam lalu per 6 jam)
                     for (let h = 0; h <= 240; h += 3) {
                         labelsTime.push(hourlyDates[Math.min(h, 239)]);
-                        let val = 0;
+                        
+                        let val = null; // KUNCI 1: Default harus null, bukan 0!
+                        
                         if (h <= 144) {
                             val = tsData.values[Math.floor(h / 3)];
                         } else {
@@ -978,7 +1064,11 @@ keberagaman dan konsentrasi ikan dalam jumlah besar..</p></div>`;
                             let actual_idx = Math.min(48 + step6_idx, tsData.values.length - 1);
                             val = tsData.values[actual_idx];
                         }
-                        if (['arus', 'angin'].includes(moData.type)) val = Math.abs(val); 
+                        
+                        // KUNCI 2: Hanya ubah nilai absolut jika datanya ADA (bukan null)
+                        if (val !== null && ['arus', 'angin'].includes(moData.type)) {
+                            val = Math.abs(val);
+                        }
                         dataTime.push(val);
                     }
                 }
@@ -1004,7 +1094,47 @@ keberagaman dan konsentrasi ikan dalam jumlah besar..</p></div>`;
                     data: { labels: labelsTime, datasets: [{ label: moData.title, data: dataTime, borderColor: '#2563eb', backgroundColor: 'rgba(37, 99, 235, 0.2)', fill: true, tension: 0.4, pointRadius: dataLength === 240 ? 0 : 2 }] },
                     options: { 
                         maintainAspectRatio: false, 
-                        plugins: { legend: { display: false } }, 
+                        plugins: { 
+                            legend: { display: false },
+                            
+                            // ==========================================
+                            // KUNCI PERBAIKAN: Setelan Tooltip (Kotak Hitam)
+                            // ==========================================
+                            tooltip: {
+                                backgroundColor: 'rgba(30, 58, 138, 0.95)', // Warna biru dongker transparan elegan
+                                titleFont: { size: 12, weight: 'bold' },
+                                bodyFont: { size: 11 },
+                                padding: 10,
+                                cornerRadius: 6,
+                                displayColors: true,
+                                callbacks: {
+                                    // 1. Paksa memunculkan Waktu (Jam & Hari) di baris pertama
+                                    title: function(tooltipItems) {
+                                        return "🕒 Waktu: " + tooltipItems[0].label;
+                                    },
+                                    // 2. Format baris kedua (Angka + Satuan Otomatis)
+                                    label: function(context) {
+                                        let val = context.raw; // KUNCI: Ambil data murni dari array
+                                        
+                                        // Jika datanya kosong (Daratan), tampilkan info yang jelas!
+                                        if (val === null || val === undefined) {
+                                            return "Tidak ada data (Area Darat)";
+                                        }
+
+                                        let unit = "";
+                                        if (moData.type === 'hujan') unit = " mm/3 Jam";
+                                        else if (moData.type === 'suhu') unit = " °C";
+                                        else if (moData.type === 'salinitas') unit = " PSU";
+                                        else if (moData.type === 'arus' || moData.type === 'angin') unit = " m/s";
+                                        else if (moData.type === 'msl') unit = " hPa";
+                                        else unit = " m"; 
+                                        
+                                        // Potong rapi menjadi 2 angka di belakang koma
+                                        return `${context.dataset.label}: ${val.toFixed(2)}${unit}`;
+                                    }
+                                }
+                            }
+                        }, 
                         scales: { 
                             x: { 
                                 ticks: { 
@@ -1098,7 +1228,16 @@ map.on('click', function(e) {
 
 window.closeMetOceanSidebar = function() {
     const detailSidebar = document.getElementById('detail-sidebar');
-    if (detailSidebar) detailSidebar.classList.add('-translate-x-[120%]');
+    if (detailSidebar) {
+        detailSidebar.classList.add('-translate-x-[120%]');
+        
+        // Tarik balik Widget Cuaca ke kiri
+        const weatherWidget = document.getElementById('weather-widget');
+        if (weatherWidget) {
+            weatherWidget.classList.remove('md:left-[440px]');
+            weatherWidget.classList.add('md:left-4');
+        }
+    }
 };
 
 // ==========================================
@@ -1165,7 +1304,15 @@ map.on('dragstart', function() {
 
 // A. Mouse Koordinat Realtime
 map.on('mousemove', function(e) {
-    document.getElementById('coord-info').innerHTML = `Lat: ${e.latlng.lat.toFixed(4)} | Lon: ${e.latlng.lng.toFixed(4)}`;
+    let latlonText = `Lat: ${e.latlng.lat.toFixed(4)} | Lon: ${e.latlng.lng.toFixed(4)}`;
+    
+    // 1. Kirim ke kotak asli (kiri bawah peta)
+    const mainCoord = document.getElementById('coord-info');
+    if (mainCoord) mainCoord.innerHTML = latlonText;
+    
+    // 2. Kirim ke tabel cuaca (di atas tombol Tutup Tabel)
+    const wxCoord = document.getElementById('wx-coord-info');
+    if (wxCoord) wxCoord.innerHTML = latlonText;
 });
 
 // B. Pencarian Lokasi (Geocoding API OpenStreetMap)
@@ -2141,7 +2288,7 @@ const weatherWidget = document.createElement('div');
 weatherWidget.id = 'weather-widget';
 weatherWidget.className = 'absolute top-16 left-2 md:left-4 z-[1000] w-[90vw] md:w-[22rem] bg-slate-800/90 backdrop-blur-md rounded-xl shadow-2xl border border-slate-600 text-white overflow-hidden transition-all duration-300 hidden';
 weatherWidget.innerHTML = `
-    <div class="p-3 border-b border-slate-600/50 flex justify-between items-center cursor-pointer hover:bg-slate-700/50 transition" onclick="document.getElementById('bottom-forecast-panel').classList.remove('translate-y-full')" title="Klik untuk lihat tabel per jam">
+    <div class="p-3 border-b border-slate-600/50 flex justify-between items-center cursor-pointer hover:bg-slate-700/50 transition" onclick="window.openForecastPanel()" title="Klik untuk lihat tabel per jam">
         <div>
             <div class="text-[10px] text-slate-300 font-bold uppercase tracking-wider flex items-center gap-1">
                 <span>📍</span> <span id="wx-location" class="truncate w-40 inline-block">Klik Peta...</span>
@@ -2158,16 +2305,48 @@ weatherWidget.innerHTML = `
 `;
 document.body.appendChild(weatherWidget);
 
+// --- MESIN BUKA TUTUP TABEL CUACA CERDAS ---
+window.openForecastPanel = function() {
+    const panel = document.getElementById('bottom-forecast-panel');
+    const mainCoordInfo = document.getElementById('coord-info'); // Ini LatLon asli yang nempel di peta
+    
+    if (panel) panel.classList.remove('translate-y-full');
+    
+    // Sembunyikan LatLon asli agar tidak balapan/berantakan
+    if (mainCoordInfo) {
+        mainCoordInfo.style.transition = "opacity 0.3s";
+        mainCoordInfo.style.opacity = "0"; 
+    }
+};
+
+window.closeForecastPanel = function() {
+    const panel = document.getElementById('bottom-forecast-panel');
+    const mainCoordInfo = document.getElementById('coord-info');
+    
+    if (panel) panel.classList.add('translate-y-full');
+    
+    // Munculkan lagi LatLon asli di peta
+    if (mainCoordInfo) {
+        mainCoordInfo.style.opacity = "1"; 
+    }
+};
+
 // --- 3. BUAT PANEL BAWAH (WINDY STYLE) ---
 const forecastPanel = document.createElement('div');
 forecastPanel.id = 'bottom-forecast-panel';
 forecastPanel.className = 'absolute bottom-0 left-0 right-0 z-[1001] bg-slate-50/95 backdrop-blur-md shadow-[0_-10px_20px_rgba(0,0,0,0.2)] border-t border-slate-300 transition-transform duration-500 translate-y-full flex flex-col';
+
+// GANTI BAGIAN HTML INI:
 forecastPanel.innerHTML = `
-    <div class="flex justify-between items-center bg-slate-800 text-white px-4 py-2 cursor-pointer" onclick="document.getElementById('bottom-forecast-panel').classList.add('translate-y-full')">
+    <div class="flex justify-between items-center bg-slate-800 text-white px-4 py-2 cursor-pointer" onclick="window.closeForecastPanel()">
         <div class="flex items-center gap-2">
             <span class="text-sm font-bold tracking-wider uppercase text-yellow-400" id="panel-location-title">Prakiraan Cuaca Per Jam</span>
         </div>
-        <button class="text-red-400 hover:text-red-300 font-bold text-xs bg-slate-700 px-3 py-1 rounded shadow">✖ Tutup Tabel</button>
+        
+        <div class="flex flex-col items-end gap-1">
+            <span id="wx-coord-info" class="text-[10px] text-slate-300 font-mono tracking-wide font-bold"></span>
+            <button class="text-red-400 hover:text-red-300 font-bold text-xs bg-slate-700 px-3 py-1 rounded shadow" onclick="event.stopPropagation(); window.closeForecastPanel();">✖ Tutup Tabel</button>
+        </div>
     </div>
     <div class="overflow-x-auto pb-1 custom-scrollbar">
         <div id="forecast-table-container" class="flex min-w-max p-2 text-center text-[10.5px] text-slate-800"></div>
@@ -2260,6 +2439,11 @@ async function updateWeatherWidget(lat, lon) {
             let icon = getWeatherIconAndDesc(hourly.weathercode[i]).icon;
             let temp = Math.round(hourly.temperature_2m[i]);
             let rain = hourly.precipitation[i];
+            if (i > 0) rain += hourly.precipitation[i-1];
+            if (i > 1) rain += hourly.precipitation[i-2];
+
+            // Bulatkan ke 1 angka di belakang koma agar rapi
+            rain = Math.round(rain * 10) / 10;
             let windKt = Math.round(hourly.windspeed_10m[i] * 0.539957);
             let windDir = hourly.winddirection_10m[i];
 
@@ -2289,9 +2473,13 @@ async function updateWeatherWidget(lat, lon) {
     }
 }
 
-// --- 5. KONTROL SISTEM CUACA ---
+// Tambahkan variabel baru ini di dekat isWeatherActive
+let isWeatherManuallyToggled = false; 
+
 function turnOffWeatherSystem() {
     isWeatherActive = false;
+    isWeatherManuallyToggled = false; // Reset penanda saat mati
+    
     weatherWidget.classList.add('hidden');
     forecastPanel.classList.add('translate-y-full');
     if (weatherToggleBtn) {
@@ -2300,15 +2488,27 @@ function turnOffWeatherSystem() {
     }
 }
 
-function turnOnWeatherSystem() {
-    if (typeof closeSidebar === 'function') closeSidebar();
-    if (typeof closeMetOceanSidebar === 'function') closeMetOceanSidebar();
-    
+// Tambahkan parameter isManual di sini
+function turnOnWeatherSystem(isManual = false) {
     isWeatherActive = true;
+    isWeatherManuallyToggled = isManual; // Ingat dari mana dia dinyalakan!
+    
     weatherWidget.classList.remove('hidden');
     if (weatherToggleBtn) {
         weatherToggleBtn.classList.replace('bg-slate-800', 'bg-blue-600');
         weatherToggleBtn.classList.add('ring-4', 'ring-blue-400');
+    }
+    
+    // ==========================================
+    // LOGIKA GESER (Tetap ada untuk memenuhi Syarat 3)
+    // ==========================================
+    const detailSidebar = document.getElementById('detail-sidebar');
+    if (detailSidebar && !detailSidebar.classList.contains('-translate-x-[120%]')) {
+        weatherWidget.classList.remove('md:left-4');
+        weatherWidget.classList.add('md:left-[440px]');
+    } else {
+        weatherWidget.classList.remove('md:left-[440px]');
+        weatherWidget.classList.add('md:left-4');
     }
     
     let center = map.getCenter();
@@ -2316,8 +2516,10 @@ function turnOnWeatherSystem() {
 }
 
 if (weatherToggleBtn) {
-    weatherToggleBtn.addEventListener('click', () => {
-        isWeatherActive ? turnOffWeatherSystem() : turnOnWeatherSystem();
+    weatherToggleBtn.addEventListener('click', (e) => {
+        e.stopPropagation(); // Cegah klik ini memicu sensor auto-tutup
+        // Jika sedang nyala, matikan. Jika mati, nyalakan secara MANUAL (true)
+        isWeatherActive ? turnOffWeatherSystem() : turnOnWeatherSystem(true);
     });
 }
 
@@ -2325,6 +2527,10 @@ if (weatherToggleBtn) {
 document.addEventListener('click', (e) => {
     // Jika sistem cuaca sedang mati, abaikan
     if (!isWeatherActive) return;
+
+    // 🛡️ KUNCI UTAMA (SYARAT 2): 
+    // Jika widget dinyalakan SECARA MANUAL (lewat tombol), JANGAN AUTO-TUTUP!
+    if (isWeatherManuallyToggled) return;
 
     // Daftar area yang BOLEH diklik saat mode cuaca aktif (tidak memicu mati otomatis)
     const allowedZones = [
@@ -2335,13 +2541,9 @@ document.addEventListener('click', (e) => {
         'search-suggestions'       // Hasil Pencarian Lokasi
     ];
 
-    // Cek apakah user mengeklik area yang diizinkan
-    const isAllowedZone = allowedZones.some(id => e.target.closest(`#${id}`));
-    
-    // Cek apakah user mengeklik peta (TIDAK termasuk kontrol Leaflet seperti tombol zoom/layer)
+const isAllowedZone = allowedZones.some(id => e.target.closest(`#${id}`));
     const isMapClick = e.target.closest('#map') && !e.target.closest('.leaflet-control');
 
-    // Jika yang diklik BUKAN peta dan BUKAN area cuaca (berarti user klik menu Layer, Zonasi, Print, dsb)
     if (!isAllowedZone && !isMapClick) {
         turnOffWeatherSystem();
     }
@@ -2351,16 +2553,15 @@ document.addEventListener('click', (e) => {
 map.on('click', function(e) {
     if (isWeatherActive) {
         updateWeatherWidget(e.latlng.lat, e.latlng.lng);
-        forecastPanel.classList.remove('translate-y-full'); // Buka otomatis panel bawah jika diklik di peta
+        window.openForecastPanel(); // Pakai fungsi baru ini agar LatLon diatur
     }
 });
 
 // --- 7. AUTO-START SAAT WEBGIS PERTAMA DIBUKA ---
-// Beri jeda 1 detik agar Leaflet selesai merender peta dasar, lalu nyalakan cuaca!
 setTimeout(() => {
-    turnOnWeatherSystem();
+    // Dinyalakan otomatis, bukan ditekan manual (false)
+    turnOnWeatherSystem(false); 
 }, 1000);
-
 
 // ==========================================
 // 19. STASIUN PASANG SURUT (TIDE STATION)
@@ -2499,3 +2700,81 @@ async function buildTideSidebar(stationName, lat, lon, stationCode) {
         sidebarContent.innerHTML = `<div class="p-4 bg-red-50 text-red-600 text-xs font-bold rounded border border-red-200">Gagal terhubung ke instrumen pasang surut.</div>`;
     }
 }
+
+// ==========================================
+// 20. FITUR EARLY WARNING: RADAR PEMINDAI THERMAL FRONT TERDEKAT
+// ==========================================
+setTimeout(async () => {
+    // 1. Mulai memindai dari waktu saat web dibuka
+    let startIndex = typeof currentSliderIndex !== 'undefined' ? currentSliderIndex : 0;
+    let foundIndex = -1;
+
+    console.log("📡 Memulai radar pemindai Thermal Front secara otomatis...");
+
+    // 2. Looping cerdas: Mesin otomatis menembak API sampai ketemu datanya!
+    for (let i = startIndex; i <= 239; i += 2) {
+        try {
+            const res = await fetch(`https://api-webgis-kalteng.onrender.com/api/thermal-front/${i}`);
+            if (!res.ok) continue; 
+            
+            const data = await res.json();
+            
+            // Cek apakah murni ada garis di jam ini
+            if (data && data.features && data.features.length > 0) {
+                const lines = data.features[0].geometry.coordinates;
+                if (lines && lines.length > 0) {
+                    foundIndex = i; // TARGET DITEMUKAN SECARA OTOMATIS!
+                    break; 
+                }
+            }
+        } catch(e) {
+            // Lanjut scan ke jam berikutnya jika ada error jaringan ringan
+        }
+    }
+
+    // 3. Jika target ditemukan, buat UI Notifikasinya
+    if (foundIndex !== -1) {
+        const notif = document.createElement('div');
+        notif.id = 'auto-notif-thermal';
+        // Ubah padding kanan (pr-2) agar tombol silang pas di pinggir
+        notif.className = "fixed top-5 left-1/2 transform -translate-x-1/2 z-[999999] bg-gradient-to-r from-red-700 to-red-500 backdrop-blur-md text-white pl-6 pr-2 py-2 rounded-full shadow-[0_10px_25px_rgba(220,38,38,0.6)] border border-white/30 font-bold flex items-center gap-3 animate-bounce";
+        
+        let waktuDitemukan = hourlyDates[foundIndex]; 
+        
+        // HTML Dalam Notifikasi: Dipisah antara Tombol Klik Peta dan Tombol Silang
+        notif.innerHTML = `
+            <div class="flex items-center gap-3 cursor-pointer hover:scale-105 transition-transform" id="btn-go-thermal" title="Klik untuk melihat di peta">
+                <span class="text-2xl animate-pulse">📡</span> 
+                <span class="tracking-wide text-sm">Potensi Ikan (Thermal Front) terdekat: <b class="text-yellow-300">${waktuDitemukan}</b>. <span class="underline decoration-dotted ml-1 text-[11px]">Klik untuk meluncur 🚀</span></span>
+            </div>
+            <button id="btn-close-notif" class="ml-2 bg-red-900/50 hover:bg-red-900 text-white rounded-full w-7 h-7 flex items-center justify-center transition shadow-inner" title="Tutup peringatan">✖</button>
+        `;
+        
+        document.body.appendChild(notif);
+
+        // AKSI 1: Jika tulisan/ikon radarnya diklik (Meluncur ke TKP)
+        document.getElementById('btn-go-thermal').onclick = () => {
+            const timeSlider = document.getElementById('timeSlider');
+            if (timeSlider) {
+                timeSlider.value = foundIndex;
+                timeSlider.dispatchEvent(new Event('input')); 
+            }
+            
+            const btnThermal = document.getElementById('btn-thermal-front');
+            if (btnThermal && typeof isThermalFrontActive !== 'undefined' && !isThermalFrontActive) {
+                btnThermal.click(); 
+            }
+            notif.remove(); 
+        };
+
+        // AKSI 2: Jika tombol silang (✖) diklik (Hanya Menutup Notifikasi)
+        document.getElementById('btn-close-notif').onclick = (e) => {
+            e.stopPropagation(); // Mencegah terkliknya aksi 1 secara tidak sengaja
+            notif.remove(); // Notifikasi hilang, peta tidak berubah
+        };
+        
+        console.log("✅ Radar Sukses: Thermal Front otomatis ditemukan pada index", foundIndex);
+    } else {
+        console.log("ℹ️ Radar Selesai: Tidak ada Thermal Front dalam 10 hari ke depan.");
+    }
+}, 3500);

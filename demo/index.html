@@ -255,7 +255,7 @@
                     -
                 </div>
                 
-                <input type="range" id="timeSlider" min="0" max="239" value="0" class="w-full h-1 bg-blue-950 rounded-lg cursor-pointer relative z-20 accent-yellow-400 hover:h-1.5 transition-all">
+                <input type="range" id="timeSlider" min="0" max="239" step="1" value="0" class="w-full h-1 bg-blue-950 rounded-lg cursor-pointer relative z-20 accent-yellow-400 hover:h-1.5 transition-all">
                 
                 <div id="monthLabels" class="flex w-full mt-0.5 text-[9px] text-blue-200 font-medium"></div>
             </div>
@@ -273,16 +273,20 @@
     </div>
 
     <div id="metocean-sidebar" class="absolute top-20 left-4 z-[1000] w-80 max-h-[60vh] bg-white/95 backdrop-blur-sm shadow-2xl rounded-xl border border-blue-100 overflow-y-auto transition-all duration-500 -translate-x-[120%]">
-        <div class="bg-blue-900 px-4 py-3 flex justify-between items-center sticky top-0 z-10">
-            <h3 class="text-white font-bold text-sm uppercase tracking-wider">Statistik MetOcean</h3>
-            <button onclick="closeMetOceanSidebar()" class="text-white/70 hover:text-white">✕</button>
-        </div>
-        <div class="p-4 space-y-5">
-            <div id="mo-info" class="text-xs text-gray-700 bg-blue-50 p-2 rounded border border-blue-100 shadow-inner"></div>
+        <div class="bg-blue-900 px-4 py-3 flex flex-col sticky top-0 z-10">
+            <div id="mo-info" class="text-[10px] text-blue-300 font-mono mb-1"></div>
             
+            <div class="flex justify-between items-center">
+                <h3 class="text-white font-bold text-xs uppercase tracking-wider">Statistik MetOcean</h3>
+                <button onclick="closeMetOceanSidebar()" class="text-white/70 hover:text-white text-xs font-bold">✕ Tutup Tabel</button>
+            </div>
+        </div>
+
+        <div class="p-4 space-y-5">
             <div id="containerTimeSeries">
                 <label class="text-[10px] font-bold text-gray-500 uppercase">Prakiraan 10 Hari (Time Series)</label>
                 <div class="relative h-44 w-full mt-1"><canvas id="chartTimeSeries"></canvas></div>
+            </div>
             </div>
             
             <div id="containerDepth">
@@ -296,3 +300,5 @@
     <script src="tour.js"></script>
 </body>
 </html>
+
+
