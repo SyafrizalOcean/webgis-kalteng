@@ -49,7 +49,7 @@ map.getPane('zonasiPane').style.zIndex = 600; // Lebih rendah
 map.createPane('metoceanPane');
 map.getPane('metoceanPane').style.zIndex = 500; // Lebih tinggi (di atas zonasi)
 const baseLayers = {
-    satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: 'Esri' }),
+    satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: '© Research Group of Applied and Environmental Oceanography - ITB' }),
     osm: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }),
     dark: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { attribution: '© CARTO' }),
     light: L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: '© CARTO' })
@@ -154,8 +154,49 @@ const configs = {
         title: "Kecepatan Angin 10m", 
         min: "0 m/s", max: ">15 m/s", 
         css: "linear-gradient(to right, #30123b, #4662d7, #36aaf9, #1ae4b6, #72fe5e, #c8ef34, #faba39, #f66b19, #cb2a04, #7a0403)" 
+    },
+
+    hotspot_mhw: {
+        title: "Hotspot MHW (30 Thn)",
+        scale: chroma.scale(['#ffffb2', '#fecc5c', '#fd8d3c', '#f03b20', '#bd0026']).domain([850, 1050, 1170, 1220, 1262]),
+        min: "850 Hari", max: "1262 Hari",
+        css: "linear-gradient(to right, #ffffb2, #fecc5c, #fd8d3c, #f03b20, #bd0026)"
+    },
+    hotspot_mcs: {
+        title: "Hotspot MCS (30 Thn)",
+        scale: chroma.scale(['#f1eef6', '#bdc9e1', '#74a9cf', '#2b8cbe', '#045a8d']).domain([955, 1100, 1239, 1290, 1331]),
+        min: "955 Hari", max: "1331 Hari",
+        css: "linear-gradient(to right, #f1eef6, #bdc9e1, #74a9cf, #2b8cbe, #045a8d)"
     }
 };
+
+// ==========================================
+// MASTER FUNGSI LEGENDA (ANTI-HILANG & ANTI-TENGGELAM)
+// ==========================================
+function tampilkanLegenda(conf) {
+    const legCont = document.getElementById('legenda-container');
+    if (legCont) {
+        legCont.classList.remove('hidden');
+        legCont.style.display = 'flex';   // Paksa tampil
+        legCont.style.zIndex = '999999';  // KUNCI: Paksa ke tumpukan paling depan agar tidak ditelan peta!
+        
+        const legWarna = document.getElementById('legenda-warna');
+        const legMin = document.getElementById('legenda-min');
+        const legMax = document.getElementById('legenda-max');
+        
+        if (legWarna) legWarna.style.background = conf.css;
+        if (legMin) legMin.textContent = conf.min;
+        if (legMax) legMax.textContent = conf.max;
+    }
+}
+
+function sembunyikanLegenda() {
+    const legCont = document.getElementById('legenda-container');
+    if (legCont) {
+        legCont.classList.add('hidden');
+        legCont.style.display = ''; // Bersihkan gaya paksa agar benar-benar hilang saat ditutup
+    }
+}
 
 // ==========================================
 // 4. LOGIKA WAKTU (TIME SLIDER)
@@ -176,30 +217,30 @@ for (let i = 0; i < 240; i++) {
     hourlyDates.push(`${dayName} ${dayDate} - ${hour}:00`);
 }
 
-let labelHTML = '';
 let uniqueDays = [];
 hourlyDates.forEach(dateStr => {
     let dayPart = dateStr.split(' - ')[0]; 
     if (!uniqueDays.includes(dayPart)) uniqueDays.push(dayPart);
 });
 
-uniqueDays.forEach(day => {
-    labelHTML += `<div class="flex-1 text-center border-r border-blue-700/50 text-[10px] font-medium py-1 text-blue-200 hover:bg-white/10 transition">${day}</div>`;
-});
-document.getElementById('monthLabels').innerHTML = labelHTML;
-
 const timeSlider = document.getElementById('timeSlider');
 const sliderTooltip = document.getElementById('slider-tooltip');
+
+// --- MESIN PENGUBAH WUJUD SLIDER ---
+let sliderMode = 'hourly'; // Mode default: Jam
+const monthlyDates = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
 
 function updateTooltipPosition() {
     let val = parseInt(timeSlider.value);
     let min = parseInt(timeSlider.min) || 0;
     let max = parseInt(timeSlider.max) || 239;
-    let percent = ((val - min) / (max - min)) * 100;
+    let percent = max === min ? 0 : ((val - min) / (max - min)) * 100;
     sliderTooltip.style.left = `calc(${percent}% + (${8 - percent * 0.15}px))`;
-    sliderTooltip.textContent = hourlyDates[val];
+    
+    // Teks tooltip ganti sesuai mode wujudnya
+    if (sliderMode === 'monthly') sliderTooltip.textContent = "Bulan: " + monthlyDates[val - 1];
+    else sliderTooltip.textContent = hourlyDates[val];
 }
-updateTooltipPosition();
 
 // ==========================================
 // 4B. SINKRONISASI SLIDER KE WAKTU SAAT INI
@@ -217,8 +258,24 @@ function syncSliderToCurrentTime() {
         updateTooltipPosition();
     }
 }
-// Jalankan fungsi saat web pertama dimuat
-syncSliderToCurrentTime();
+
+window.setSliderMode = function(mode) {
+    sliderMode = mode;
+    let lblHTML = '';
+    if (mode === 'monthly') {
+        timeSlider.min = 1; timeSlider.max = 12; timeSlider.step = 1; timeSlider.value = 1;
+        monthlyDates.forEach(m => lblHTML += `<div class="flex-1 text-center border-r border-blue-700/50 text-[10px] font-medium py-1 text-blue-200">${m}</div>`);
+    } else {
+        timeSlider.min = 0; timeSlider.max = 239; timeSlider.step = 1;
+        syncSliderToCurrentTime(); // Kembalikan posisi jam saat ini
+        uniqueDays.forEach(day => lblHTML += `<div class="flex-1 text-center border-r border-blue-700/50 text-[10px] font-medium py-1 text-blue-200">${day}</div>`);
+    }
+    document.getElementById('monthLabels').innerHTML = lblHTML;
+    updateTooltipPosition();
+};
+
+// Jalankan fungsi saat web pertama dimuat agar wujud awalnya adalah Jam (Hourly)
+setSliderMode('hourly');
 
 // ==========================================
 // 5. LOGIKA KEDALAMAN (INPUT MANUAL & LIMIT 92.33m)
@@ -421,39 +478,26 @@ async function renderActiveLayer(dayIndex) {
     document.getElementById('displayTime').textContent = "Memuat data 3D...";
 
     try {
-        // --- 1. MENENTUKAN URL DATA ---
         let url = `https://api-webgis-kalteng.onrender.com/api/${activeDataType}`;
-        
-        // Data MetOcean pakai jam, Batimetri tidak pakai
         if (activeDataType !== 'batimetri') {
             url += `/${dayIndex}`;
         }
         
-        // KUNCI ANTI-404: Selalu paksa tambahkan angka kedalaman untuk parameter 3D!
         if (['suhu', 'salinitas', 'arus'].includes(activeDataType)) {
             if (depthContainer) depthContainer.classList.remove('hidden');
             let dIndex = depthSlider ? depthSlider.value : 0;
-            url += `/${dIndex}`; 
+            url += `/${dIndex}`;
         } else {
             if (depthContainer) depthContainer.classList.add('hidden');
         }
 
-        // --- 2. DOWNLOAD DATA DARI BACKEND ---
         const response = await fetch(url);
-        
-        // TAMENG PELINDUNG: Jika server Python error, hentikan proses agar peta tidak crash!
-        if (!response.ok) {
-            throw new Error(`Server API Menolak (Status: ${response.status}). Pastikan URL Backend menyala.`);
-        }
+        if (!response.ok) throw new Error(`Server API Menolak`);
         const dayData = await response.json();
-        // --- 3. LOGIKA KHUSUS BATIMETRI & SEMBUNYIKAN SLIDER ---
-        let timeSliderContainer = document.getElementById('bottom-bar-container');
-        
-        if (activeDataType === 'batimetri') {
-            // Sembunyikan slider waktu saat klik batimetri
-            if (timeSliderContainer) timeSliderContainer.classList.add('hidden');
 
-            // Hitung min & max dari data yang baru didownload
+        let timeSliderContainer = document.getElementById('bottom-bar-container');
+        if (activeDataType === 'batimetri') {
+            if (timeSliderContainer) timeSliderContainer.classList.add('hidden');
             let validDepths = dayData.zs.filter(v => v !== null);
             let minDepth = Math.floor(Math.min(...validDepths));
             let maxDepth = Math.ceil(Math.max(...validDepths));
@@ -463,106 +507,62 @@ async function renderActiveLayer(dayIndex) {
             configs['batimetri'].min = `${minDepth} m`;
             configs['batimetri'].max = `${maxDepth} m`;
         } else {
-            // Tampilkan kembali slider waktu untuk data lainnya
             if (timeSliderContainer) timeSliderContainer.classList.remove('hidden');
         }
 
-        // --- 4. RENDER KE PETA (ARUS ATAU RASTER) ---
+        // --- PANGGIL FUNGSI LEGENDA BARU ---
         const conf = configs[activeDataType];
-        const legendaContainer = document.getElementById('legenda-container');
-        if (legendaContainer) {
-            legendaContainer.classList.remove('hidden');
-            document.getElementById('legenda-warna').style.background = conf.css;
-            document.getElementById('legenda-min').textContent = conf.min;
-            document.getElementById('legenda-max').textContent = conf.max;
-        }
+        tampilkanLegenda(conf);
 
-        const windyColormap = [
-            "#30123b", "#4662d7", "#36aaf9", "#1ae4b6", "#72fe5e", 
-            "#c8ef34", "#faba39", "#f66b19", "#cb2a04", "#7a0403"
-        ];
+        const windyColormap = ["#30123b", "#4662d7", "#36aaf9", "#1ae4b6", "#72fe5e", "#c8ef34", "#faba39", "#f66b19", "#cb2a04", "#7a0403"];
 
-        // TAHAP 4A: RENDER DATA UTAMA (BASE LAYER)
         if (activeDataType === 'arus' || activeDataType === 'angin') {
-            // KUNCI PERBAIKAN: Menghitung kecepatan mutlak (Phytagoras) dari vektor U dan V agar radar kursor bisa menyala lagi!
             try {
-                let uData = dayData[0];
-                let vData = dayData[1];
-                let nx = uData.header.nx;
-                let ny = uData.header.ny;
-                let lo1 = uData.header.lo1;
-                let la1 = uData.header.la1;
-                let dx = uData.header.dx;
-                let dy = uData.header.dy;
-
+                let uData = dayData[0]; let vData = dayData[1];
+                let nx = uData.header.nx; let ny = uData.header.ny;
+                let lo1 = uData.header.lo1; let la1 = uData.header.la1;
+                let dx = uData.header.dx; let dy = uData.header.dy;
                 let zs = [];
                 for (let i = 0; i < uData.data.length; i++) {
-                    let u = uData.data[i];
-                    let v = vData.data[i];
-                    // Jika data tidak kosong, hitung √(u² + v²)
+                    let u = uData.data[i]; let v = vData.data[i];
                     if (u !== null && v !== null && !isNaN(u) && !isNaN(v)) {
-                        zs.push(Math.sqrt(u*u + v*v)); 
+                        zs.push(Math.sqrt(u*u + v*v));
                     } else {
                         zs.push(null);
                     }
                 }
-                // Simpan ke memori agar bisa dilacak oleh kursor radar!
                 window.currentGridData = { nx, ny, lo1, la1, dx, dy, zs };
             } catch (e) {
-                console.error("Gagal menyusun data radar untuk vektor", e);
                 window.currentGridData = null;
             }
             
             let isAngin = (activeDataType === 'angin');
             velocityLayer = L.velocityLayer({
                 displayValues: true, 
-                displayOptions: { 
-                    velocityType: isAngin ? 'Angin 10m' : 'Arus Laut', 
-                    position: 'bottomleft', 
-                    speedUnit: 'm/s' 
-                },
+                displayOptions: { velocityType: isAngin ? 'Angin 10m' : 'Arus Laut', position: 'bottomleft', speedUnit: 'm/s' },
                 data: dayData, 
                 maxVelocity: isAngin ? 15.0 : 0.8,
                 velocityScale: isAngin ? 0.005 : 0.1,
                 colorScale: windyColormap 
             }).addTo(map);
-
         } else {
-            // Render raster warna kotak-kotak (Suhu, Batimetri, MSL, Salinitas, dsb)
-            // Render raster warna kotak-kotak (Suhu, Batimetri, MSL, Salinitas, dsb)
             const nx = dayData.nx, ny = dayData.ny;
             const lo1 = dayData.lo1, la1 = dayData.la1;
             const dx = dayData.dx, dy = dayData.dy;
             const zs = dayData.zs;
-
             window.currentGridData = { nx, ny, lo1, la1, dx, dy, zs };
-
             for (let j = 0; j < ny; j++) {
                 for (let i = 0; i < nx; i++) {
                     const idx = j * nx + i;
                     const val = zs[idx];
-                    
-                    // ==========================================
-                    // KUNCI PERBAIKAN TAMPILAN HUJAN
-                    // Jika nilai hujannya 0, LEWATI! Jangan gambar kotaknya.
-                    // Ini membuat peta transparan dengan rapi dan anti nge-lag!
-                    // ==========================================
                     if (activeDataType === 'hujan' && val <= 0.1) continue;
-
                     if (val !== null && val !== undefined) {
                         const lat = la1 - j * dy;
                         const lon = lo1 + i * dx;
                         const bounds = [[lat - dy / 2, lon - dx / 2], [lat + dy / 2, lon + dx / 2]];
                         const color = conf.scale(val).hex();
                         
-                        let rect = L.rectangle(bounds, {
-                            color: color,
-                            weight: 0,
-                            fillColor: color,
-                            fillOpacity: 0.8,
-                            interactive: true
-                        });
-                        
+                        let rect = L.rectangle(bounds, { color: color, weight: 0, fillColor: color, fillOpacity: 0.8, interactive: true });
                         rect.metoceanVal = val;
                         rect.metoceanTitle = conf.title;
                         rect.addTo(activeRasterGroup);
@@ -571,18 +571,14 @@ async function renderActiveLayer(dayIndex) {
             }
         }
 
-        // TAHAP 4B: EFEK OVERLAY PARTIKEL (WINDY.COM CLONE)
         let needsArusOverlay = ['suhu', 'salinitas', 'ssh'].includes(activeDataType);
         let needsAnginOverlay = ['msl', 'hujan'].includes(activeDataType);
 
         if (needsArusOverlay || needsAnginOverlay) {
             try {
-                // Simpan dulu nama layer yang sedang aktif saat ini
                 const layerSaatLoading = activeDataType;
-
                 let overlayUrl = '';
                 if (needsArusOverlay) {
-                    // KUNCI ANTI-404: Pastikan URL arus selalu memiliki angka kedalaman di ujungnya!
                     let dIndex = (depthSlider && !depthContainer.classList.contains('hidden')) ? depthSlider.value : 0;
                     overlayUrl = `https://api-webgis-kalteng.onrender.com/api/arus/${dayIndex}/${dIndex}`;
                 } else {
@@ -590,41 +586,22 @@ async function renderActiveLayer(dayIndex) {
                 }
 
                 const overlayRes = await fetch(overlayUrl);
-                
-                // Tameng pelindung jika server backend sedang lemot/error
-                if (!overlayRes.ok) throw new Error("Gagal menarik data partikel penghias");
-                
+                if (!overlayRes.ok) throw new Error("Gagal menarik data");
                 const overlayData = await overlayRes.json();
 
-                // ====================================================
-                // 🛡️ PENJAGA ANTI-HANTU (TAMBAHKAN INI)
-                // Cek apakah selama proses loading tadi, user keburu nutup 
-                // atau ganti menu. Kalau iya, BATALKAN menggambar!
-                if (activeDataType !== layerSaatLoading || !activeDataType) {
-                    console.log("Membatalkan render animasi karena menu keburu ditutup/diganti.");
-                    return; 
-                }
-                // ====================================================
+                if (activeDataType !== layerSaatLoading || !activeDataType) { return; }
 
-                // Timpa animasi transparan ke atas peta kotak-kotak
                 velocityLayer = L.velocityLayer({
-                    displayValues: false, 
-                    interactive: false,   
+                    displayValues: false, interactive: false,   
                     data: overlayData, 
                     maxVelocity: needsAnginOverlay ? 15.0 : 0.8,
                     velocityScale: needsAnginOverlay ? 0.005 : 0.1,
                     colorScale: ["rgba(255,255,255,0.4)", "rgba(255,255,255,0.9)"] 
                 }).addTo(map);
-
-            } catch (overlayErr) {
-                console.log("Info: Gagal memuat animasi penghias latar belakang", overlayErr);
-            }
+            } catch (overlayErr) { }
         }
-        
         document.getElementById('displayTime').textContent = originalTimeText;
-
     } catch (err) {
-        console.error("Gagal memuat data lapisan:", err);
         document.getElementById('displayTime').textContent = "Error memuat data";
     }
 }
@@ -646,43 +623,95 @@ document.querySelectorAll('.zonasi-item').forEach(item => {
 });
 
 // ==========================================
-// FUNGSI SAPU JAGAT (RESET SEMUA LAYER)
+// FUNGSI SAPU JAGAT (RESET TOTAL SEMUA LAYER)
 // ==========================================
 function matikanSemuaLayer() {
-    // 1. Tutup semua Sidebar
     if (typeof closeSidebar === 'function') closeSidebar();
     if (typeof closeMetOceanSidebar === 'function') closeMetOceanSidebar();
 
-    // 2. Normalkan kembali semua menu & hilangkan abu-abu
-    document.querySelectorAll('.metocean-item, .ekstra-item').forEach(item => {
-        item.classList.replace('bg-yellow-100', 'bg-gray-100'); // Untuk Zonasi
-        item.classList.replace('border-yellow-400', 'border-transparent'); // Untuk Kotak Baru
-        item.classList.remove('opacity-40', 'pointer-events-none', 'grayscale', 'ring-2', 'ring-yellow-400', 'shadow-md');
-        const cb = item.querySelector('input[type="checkbox"]');
-        if (cb) cb.checked = false;
+    // 1. RESET SEMUA CHECKBOX & WARNA MENU (MetOcean, Ekstra, dan Zonasi)
+    document.querySelectorAll('.metocean-item, .ekstra-item, .zonasi-item').forEach(item => {
+        item.classList.replace('bg-yellow-100', 'bg-gray-100'); 
+        item.classList.replace('border-yellow-400', 'border-transparent');
+        item.classList.replace('border-red-400', 'border-transparent'); 
+        item.classList.replace('border-blue-400', 'border-transparent'); 
+        item.classList.remove('opacity-40', 'pointer-events-none', 'grayscale', 'ring-2', 'ring-yellow-400', 'ring-red-400', 'ring-blue-400', 'shadow-md');
     });
+    // Pukul rata: cabut semua centang checkbox di seluruh web
+    document.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
 
-    // 3. Bersihkan Peta dari Raster & Vektor (Suhu, Arus, dll)
+    // 2. BERSIHKAN PETA ZONASI (SHP)
+    if (typeof activeZonasiLayers !== 'undefined') {
+        Object.values(activeZonasiLayers).forEach(layer => map.removeLayer(layer));
+        activeZonasiLayers = {}; // Kosongkan memori penyimpan zonasi
+    }
+
+    // 3. BERSIHKAN PETA METOCEAN & TITIK KLIK
     activeDataType = null;
-    if (activeRasterGroup) activeRasterGroup.clearLayers();
-    if (velocityLayer) { map.removeLayer(velocityLayer); velocityLayer = null; }
-
-    // 4. Bersihkan Thermal Front
+    if (typeof activeRasterGroup !== 'undefined' && activeRasterGroup) activeRasterGroup.clearLayers();
+    if (typeof velocityLayer !== 'undefined' && velocityLayer) { map.removeLayer(velocityLayer); velocityLayer = null; }
+    
     isThermalFrontActive = false;
-    if (thermalFrontLayer) { map.removeLayer(thermalFrontLayer); thermalFrontLayer = null; }
+    if (typeof thermalFrontLayer !== 'undefined' && thermalFrontLayer) { map.removeLayer(thermalFrontLayer); thermalFrontLayer = null; }
 
-    // 5. Bersihkan Marker Pasang Surut
     isTideActive = false;
-    if (typeof tideLayerGroup !== 'undefined') tideLayerGroup.clearLayers();
+    if (typeof tideLayerGroup !== 'undefined' && tideLayerGroup) tideLayerGroup.clearLayers();
 
-    // 6. Matikan UI Ekstra
-    if (isPlaying) stopAnimation();
-    document.getElementById('legenda-container').classList.add('hidden');
-    document.getElementById('displayPanel').classList.add('hidden');
+    // 4. BERSIHKAN HISTORIS MHW & EWS
+    if (typeof layerGrupMhw !== 'undefined' && layerGrupMhw) layerGrupMhw.clearLayers();
+    if (typeof ewsLayer !== 'undefined' && ewsLayer) { map.removeLayer(ewsLayer); ewsLayer = null; }
+    if (typeof activeEwsType !== 'undefined') activeEwsType = null;
+
+    // 5. BERSIHKAN ALAT UKUR JARAK ZONASI (TOMBOL TOOLBAR)
+    isUkurZonasiActive = false;
+    if (typeof nearestDistanceLayerGroup !== 'undefined' && nearestDistanceLayerGroup) {
+        nearestDistanceLayerGroup.clearLayers();
+    }
+    if (typeof ukurZonasiHistory !== 'undefined') ukurZonasiHistory = [];
+    const btnUkurZ = document.getElementById('btn-ukur-zonasi');
+    if (btnUkurZ) {
+        btnUkurZ.classList.remove('bg-blue-100', 'text-blue-700');
+        btnUkurZ.classList.add('hover:bg-gray-200');
+    }
+    if (typeof map !== 'undefined') map.getContainer().style.cursor = '';
+
+    // Bersihkan Peta Hotspot MHW & MCS 30 Tahun
+    isHotspotMhwActive = false;
+    isHotspotMcsActive = false;
+    if (typeof hotspotMhwLayer !== 'undefined' && hotspotMhwLayer) hotspotMhwLayer.clearLayers();
+    if (typeof hotspotMcsLayer !== 'undefined' && hotspotMcsLayer) hotspotMcsLayer.clearLayers();
+    if (typeof toggleImpactPanel === 'function') toggleImpactPanel(false);
+
+    // 6. MATIKAN SEMUA UI EKSTRA & PANEL
+    if (typeof isPlaying !== 'undefined' && isPlaying) stopAnimation();
+    sembunyikanLegenda();
+    const dispPan = document.getElementById('displayPanel');
+    if (dispPan) dispPan.classList.add('hidden');
     const depthCont = document.getElementById('depth-container');
     if (depthCont) depthCont.classList.add('hidden');
+    
+    // Sembunyikan Panel Ikan 
+    const fishPanel = document.getElementById('fish-panel');
+    if (fishPanel) fishPanel.classList.add('translate-x-[120%]'); 
+
+    // 7. KEMBALIKAN WUJUD SLIDER & UKURAN SIDEBAR
+    if (typeof setSliderMode === 'function') setSliderMode('hourly');
+    const sideEl = document.getElementById('detail-sidebar');
+    if (sideEl) {
+        sideEl.classList.remove('md:w-[21rem]', 'h-[85vh]', 'min-h-[75vh]');
+        sideEl.classList.add('md:w-[26rem]', 'max-h-[60vh]');
+    }
 }
 
+// ==========================================
+// PENGHUBUNG TONG SAMPAH KE FUNGSI SAPU JAGAT
+// ==========================================
+const btnClearAll = document.getElementById('btn-clear-all');
+if (btnClearAll) {
+    // Hindari penumpukan event listener
+    btnClearAll.removeEventListener('click', matikanSemuaLayer);
+    btnClearAll.addEventListener('click', matikanSemuaLayer);
+}
 // --- B. LOGIKA METOCEAN (SINGLE SELECT) ---
 metoceanItems.forEach(item => {
     item.addEventListener('click', function() {
@@ -784,31 +813,36 @@ zonasiItems.forEach(item => {
 });
 
 // ==========================================
-// 8. LOGIKA PLAY & SLIDER WAKTU
+// 8. LOGIKA PLAY & SLIDER WAKTU (GABUNGAN FINAL)
 // ==========================================
-timeSlider.addEventListener('input', function() {
-    currentSliderIndex = parseInt(this.value);
-    updateTooltipPosition();
+const playPauseBtn = document.getElementById('play-pause-btn');
 
-    if (activeDataType) {
-        document.getElementById('displayTime').textContent = `Prakiraan: ${hourlyDates[currentSliderIndex]}`;
-        renderActiveLayer(currentSliderIndex);
-    }
-    // KUNCI: Panggil update Thermal Front jika sedang aktif
-    if (isThermalFrontActive) {
-        renderThermalFront(currentSliderIndex);
+// --- A. AKSI SAAT SLIDER DIGESER MANUAL ---
+timeSlider.addEventListener('input', function() {
+    let val = parseInt(this.value);
+    if (typeof updateTooltipPosition === 'function') updateTooltipPosition();
+
+    if (sliderMode === 'monthly') {
+        // Jika sedang wujud Bulanan (Historis MHW)
+        if (typeof window.renderPetaBulan === 'function') window.renderPetaBulan(val);
+    } else {
+        // Jika wujud Normal (Per Jam)
+        currentSliderIndex = val;
+        if (activeDataType) {
+            document.getElementById('displayTime').textContent = `Prakiraan: ${hourlyDates[currentSliderIndex]}`;
+            renderActiveLayer(currentSliderIndex);
+        }
+        if (isThermalFrontActive) renderThermalFront(currentSliderIndex);
     }
 });
 
-const playPauseBtn = document.getElementById('play-pause-btn');
-
-// ==========================================
-// 8. LOGIKA PLAY & SLIDER WAKTU (VERSI CERDAS)
-// ==========================================
+// --- B. AKSI SAAT TOMBOL PLAY DITEKAN ---
 function stopAnimation() {
     isPlaying = false;
-    clearTimeout(animationInterval); // Ganti dari clearInterval
-    playPauseBtn.innerHTML = `<svg class="w-8 h-8" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd"></path></svg>`;
+    clearTimeout(animationInterval);
+    if (playPauseBtn) {
+        playPauseBtn.innerHTML = `<svg class="w-8 h-8" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd"></path></svg>`;
+    }
 }
 
 async function runAnimationLoop() {
@@ -816,50 +850,52 @@ async function runAnimationLoop() {
 
     let currentVal = parseInt(timeSlider.value);
     let maxVal = parseInt(timeSlider.max) || 239;
-    let nextVal = (currentVal >= maxVal) ? 0 : currentVal + 1; 
+    let minVal = parseInt(timeSlider.min) || 0;
     
-    // Update posisi slider UI
+    let nextVal = (currentVal >= maxVal) ? minVal : currentVal + 1;
     timeSlider.value = nextVal;
-    currentSliderIndex = nextVal;
-    updateTooltipPosition();
     
-    // KUNCI PERBAIKAN: Gunakan 'await' agar sistem MENUNGGU proses render selesai!
-    if (activeDataType) {
-        document.getElementById('displayTime').textContent = `Prakiraan: ${hourlyDates[currentSliderIndex]}`;
-        await renderActiveLayer(currentSliderIndex); 
-    }
-    if (isThermalFrontActive) {
-        await renderThermalFront(currentSliderIndex);
+    // Update tooltip
+    if (typeof updateTooltipPosition === 'function') updateTooltipPosition();
+
+    // Render berdasarkan mode
+    if (sliderMode === 'monthly') {
+        if (typeof window.renderPetaBulan === 'function') window.renderPetaBulan(nextVal);
+    } else {
+        currentSliderIndex = nextVal;
+        if (activeDataType) {
+            document.getElementById('displayTime').textContent = `Prakiraan: ${hourlyDates[currentSliderIndex]}`;
+            await renderActiveLayer(currentSliderIndex);
+        }
+        if (isThermalFrontActive) {
+            await renderThermalFront(currentSliderIndex);
+        }
     }
 
-    // Setelah render selesai 100%, tunggu 800ms baru pindah ke frame berikutnya
     if (isPlaying) {
-        animationInterval = setTimeout(runAnimationLoop, 800); 
+        animationInterval = setTimeout(runAnimationLoop, 1500);
     }
 }
 
 function startAnimation() {
     isPlaying = true;
-    playPauseBtn.innerHTML = `<svg class="w-8 h-8" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v4a1 1 0 11-2 0V8z" clip-rule="evenodd"></path></svg>`;
+    if (playPauseBtn) {
+        playPauseBtn.innerHTML = `<svg class="w-8 h-8" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v4a1 1 0 11-2 0V8z" clip-rule="evenodd"></path></svg>`;
+    }
     runAnimationLoop();
 }
 
-// Ganti event listener playPauseBtn di app.js kamu
-playPauseBtn.addEventListener('click', () => {
-    // Izinkan Play jika ada MetOcean AKTIF atau Thermal Front AKTIF
-    if (!activeDataType && !isThermalFrontActive) { 
-        alert("Pilih parameter MetOcean atau Alat Analisis dulu di menu kanan atas ya!"); 
-        return; 
-    }
-    
-    // Munculkan panel judul jika hanya Thermal Front yang dimainkan
-    if (!activeDataType && isThermalFrontActive) {
-        document.getElementById('displayPanel').classList.remove('hidden');
-        document.getElementById('displayTitle').textContent = "Thermal Front Tracker";
-    }
-
-    isPlaying ? stopAnimation() : startAnimation();
-});
+if (playPauseBtn) {
+    // Menggunakan .onclick agar sangat aman dan tidak ada klik ganda
+    playPauseBtn.onclick = () => {
+        // Logika Satpam Play:
+        if (!activeDataType && !isThermalFrontActive && sliderMode !== 'monthly') { 
+            alert("Pilih parameter MetOcean, Alat Analisis, atau Historis dulu di menu kanan atas ya!"); 
+            return; 
+        }
+        isPlaying ? stopAnimation() : startAnimation();
+    };
+}
 // ==========================================
 // 9. LOGIKA SIDEBAR KIRI GABUNGAN & DUA GRAFIK
 // ==========================================
@@ -887,8 +923,19 @@ function getMetOceanDataMath(lat, lon) {
 window.buildUnifiedSidebar = async function(lat, lon, zonasiProps = null) {
     // 1. Munculkan sidebar di posisi aslinya (kiri)
     detailSidebar.classList.remove('-translate-x-[120%]');
-    detailSidebar.classList.remove('left-[350px]', 'left-[360px]'); // Bersihkan sisa experimen kita tadi
+    detailSidebar.classList.remove('left-[350px]', 'left-[360px]'); 
     detailSidebar.classList.add('left-4');
+
+    // --- SAKLAR OTOMATIS: UKURAN SIDEBAR BUNGALON ---
+    if (typeof isThermalFrontActive !== 'undefined' && isThermalFrontActive) {
+        // Lebar Ramping (21rem) TAPI Tinggi Normal sama seperti MetOcean (60vh)
+        detailSidebar.classList.remove('md:w-[26rem]', 'h-[85vh]', 'min-h-[75vh]');
+        detailSidebar.classList.add('md:w-[21rem]', 'max-h-[60vh]');
+    } else {
+        // JIKA BUKAN THERMAL FRONT: Kembali lebar normal
+        detailSidebar.classList.remove('md:w-[21rem]', 'h-[85vh]', 'min-h-[75vh]');
+        detailSidebar.classList.add('md:w-[26rem]', 'max-h-[60vh]');
+    }
 
     // ==========================================
     // LOGIKA GESER WIDGET CUACA KE KANAN
@@ -896,7 +943,7 @@ window.buildUnifiedSidebar = async function(lat, lon, zonasiProps = null) {
     const weatherWidget = document.getElementById('weather-widget');
     if (weatherWidget && typeof isWeatherActive !== 'undefined' && isWeatherActive) {
         weatherWidget.classList.remove('md:left-4');
-        weatherWidget.classList.add('md:left-[440px]'); // Geser melewati sidebar grafik
+        weatherWidget.classList.add('md:left-[440px]');
     }
 
     let html = '';
@@ -976,21 +1023,37 @@ window.buildUnifiedSidebar = async function(lat, lon, zonasiProps = null) {
     }
 
     if (typeof isThermalFrontActive !== 'undefined' && isThermalFrontActive) {
-        html += `<div class="mt-4 p-4 bg-blue-50 rounded-lg border-l-4 border-blue-600 shadow-sm"><h4 class="text-xs font-bold text-blue-900 uppercase mb-2">Informasi Thermal Front</h4><p class="text-[11px]">Thermal front merupakan zona yang menggambarkan wilayah dengan gradien 
-temperatur, baik secara horizontal (Sholva et al., 2013) maupun vertikal (Belkin 
-dan Cornillon, 2003). Zona ini terbentuk di perairan yang memiliki perbedaan suhu 
-mencolok dengan daerah sekitarnya, dengan kisaran perbedaan sekitar 0,5°C dalam 
-jarak 3 km (Simbolon et al., 2013). Thermal front juga tergolong dalam zona 
-konvergensi massa air yang kaya akan nutrien, klorofil-a, fitoplankton, dan 
-zooplankton, sehingga berperan penting dalam meningkatkan produktivitas 
-perairan (Valvanis et al., 2005; Sholva et al., 2013). 
-Identifikasi thermal front sangat krusial bagi zona penangkapan ikan karena area 
-ini merupakan zona konvergensi massa air yang kaya akan nutrien, klorofil-a, 
-fitoplankton, dan zooplankton. Kandungan nutrien yang tinggi di thermal front 
-menarik berbagai organisme laut sebagai bagian dari rantai makanan, termasuk 
-ikan-ikan pelagis yang sering menjadi target perikanan. Selain itu, perbedaan suhu 
-yang mencolok di zona ini menciptakan kondisi lingkungan yang mendukung 
-keberagaman dan konsentrasi ikan dalam jumlah besar..</p></div>`;
+        html += `
+        <div class="mt-2 bg-blue-50 rounded-lg border-l-4 border-blue-600 shadow-sm flex flex-col relative">
+            <div class="p-4 pb-2">
+                <h4 class="text-xs font-bold text-blue-900 uppercase mb-3 flex items-center gap-2 border-b border-blue-200 pb-2">
+                    <span class="animate-pulse text-lg">🌊</span> Informasi Thermal Front
+                </h4>
+                
+                <div class="text-[11px] text-gray-700 text-justify leading-relaxed">
+                    Thermal front merupakan zona yang menggambarkan wilayah dengan gradien temperatur, baik secara horizontal (Sholva dkk., 2013) maupun vertikal (Belkin dan Cornillon, 2003). Zona ini terbentuk di perairan yang memiliki perbedaan suhu mencolok dengan daerah sekitarnya, dengan kisaran perbedaan sekitar 0,5°C dalam jarak 3 km (Simbolon dkk., 2013). <br><br>
+                    Thermal front juga tergolong dalam zona konvergensi massa air yang kaya akan nutrien, klorofil-a, fitoplankton, dan zooplankton, sehingga berperan penting dalam meningkatkan produktivitas perairan (Valvanis dkk., 2005; Sholva dkk., 2013). <br><br>
+                    Identifikasi thermal front sangat krusial bagi zona penangkapan ikan karena area ini merupakan zona konvergensi massa air yang kaya akan nutrien. Kandungan nutrien yang tinggi menarik ikan-ikan pelagis yang sering menjadi target perikanan.
+                </div>
+            </div>
+            
+            <div class="sticky bottom-0 w-full bg-blue-50 p-4 pt-2 border-t border-blue-200/50 rounded-b-lg">
+                <button onclick="
+                    let p = document.getElementById('fish-panel'); 
+                    if(p && p.classList.contains('translate-x-[120%]')){ 
+                        if(typeof toggleFishPanel === 'function') toggleFishPanel(true); 
+                        this.innerHTML='Tutup Tampilan Ikan <span class=\\'text-xl animate-bounce\\'>🐟</span>';
+                        this.className='w-full bg-red-500 text-white text-[12px] font-bold py-3 rounded flex justify-center items-center gap-2 hover:bg-red-600 transition shadow-md';
+                    } else { 
+                        if(typeof toggleFishPanel === 'function') toggleFishPanel(false); 
+                        this.innerHTML='Buka Potensi Ikan <span class=\\'text-xl animate-bounce\\'>🐠</span>';
+                        this.className='w-full bg-blue-600 text-white text-[12px] font-bold py-3 rounded flex justify-center items-center gap-2 hover:bg-blue-700 transition shadow-md';
+                    }
+                " class="w-full bg-red-500 text-white text-[12px] font-bold py-3 rounded flex justify-center items-center gap-2 hover:bg-red-600 transition shadow-md">
+                    Tutup Tampilan Ikan <span class="text-xl animate-bounce">🐟</span>
+                </button>
+            </div>
+        </div>`;
     }
 
     if (!zonasiProps && !moData && !isThermalFrontActive) {
@@ -1332,6 +1395,154 @@ map.on('dragstart', function() {
 });
 
 // ==========================================
+// 10. ALAT ANALISIS: INSTRUMEN JARAK ZONASI (TOOLBAR)
+// ==========================================
+let nearestDistanceLayerGroup = L.layerGroup().addTo(map);
+let isUkurZonasiActive = false;
+let ukurZonasiHistory = []; // KUNCI BARU: Menyimpan memori riwayat klik
+
+function makeNearestTooltip(feature, distanceKm, lat, lng) {
+    let props = feature.properties || {};
+    let name = props.NAMOBJ || props.SUBZONA || props.ZONA || props.Kawasan || "Area Zonasi Pesisir";
+    
+    return `
+        <div class="p-1 text-center font-sans">
+            <b class="text-blue-700 text-xs uppercase block border-b border-gray-200 pb-1 mb-1">🎯 Hasil Ukur Jarak</b>
+            <span class="text-[10px] text-gray-600">Titik Klik: <b>${lat.toFixed(4)}, ${lng.toFixed(4)}</b></span><br>
+            <span class="text-[10px] text-gray-700">Zonasi Terdekat: <br><b class="text-blue-900">${name}</b></span><br>
+            <span class="text-[10px] text-gray-700">Jarak Spasial: <b class="text-red-600 text-xs font-bold">${distanceKm.toFixed(2)} Km</b></span>
+        </div>
+    `;
+}
+
+function findNearestFeatureLeaflet(map, lat, lng, activeLayersArray) {
+    if (!activeLayersArray || activeLayersArray.length === 0) return null;
+    try {
+        let allFeatures = [];
+        activeLayersArray.forEach(group => {
+            if (group && typeof group.eachLayer === 'function') {
+                group.eachLayer(layer => {
+                    if (layer.feature) allFeatures.push(layer);
+                });
+            }
+        });
+
+        if (allFeatures.length === 0) return null;
+
+        let closestLayers = L.GeometryUtil.nClosestLayers(map, allFeatures, L.latLng(lat, lng), 1);
+        if (closestLayers.length === 0) return null;
+        
+        let closestLayer = closestLayers[0].layer;
+        let closestPoint = closestLayers[0].latlng;
+        let distanceKm = map.distance(closestPoint, L.latLng(lat, lng)) / 1000;
+
+        return {
+            feature: closestLayer.feature || {},
+            nearestPoint: [closestPoint.lat, closestPoint.lng],
+            distanceKm: distanceKm,
+            tooltipHtml: makeNearestTooltip(closestLayer.feature || {}, distanceKm, lat, lng)
+        };
+    } catch(e) {
+        console.error("Gagal menghitung jarak geometri:", e);
+        return null;
+    }
+}
+
+// --- FUNGSI KLIK TOMBOL TOOLBAR ---
+function toggleUkurZonasi() {
+    isUkurZonasiActive = !isUkurZonasiActive;
+    const btnUkur = document.getElementById('btn-ukur-zonasi');
+    
+    if (isUkurZonasiActive) {
+        if (btnUkur) {
+            btnUkur.classList.add('bg-blue-100', 'text-blue-700');
+            btnUkur.classList.remove('hover:bg-gray-200');
+        }
+        map.getContainer().style.cursor = 'crosshair';
+        
+        if (typeof activeZonasiLayers === 'undefined' || Object.keys(activeZonasiLayers).length === 0) {
+            alert("Alat ukur aktif! (Tapi Anda belum menyalakan Peta Zonasi di menu kanan atas. Silakan centang dulu agar ada yang diukur).");
+        }
+    } else {
+        if (btnUkur) {
+            btnUkur.classList.remove('bg-blue-100', 'text-blue-700');
+            btnUkur.classList.add('hover:bg-gray-200');
+        }
+        map.getContainer().style.cursor = '';
+        
+        // Bersihkan layer dan kosongkan array riwayat saat tombol dimatikan
+        nearestDistanceLayerGroup.clearLayers();
+        ukurZonasiHistory = []; 
+    }
+}
+
+const btnUkurZonasi = document.getElementById('btn-ukur-zonasi');
+if (btnUkurZonasi) {
+    btnUkurZonasi.removeEventListener('click', toggleUkurZonasi);
+    btnUkurZonasi.addEventListener('click', toggleUkurZonasi);
+}
+
+// --- INTERSEPSI KLIK PETA UNTUK ANALISIS JARAK ---
+map.on('click', function(e) {
+    if (!isUkurZonasiActive) return;
+    
+    if (typeof activeZonasiLayers === 'undefined') return;
+    let activeLayersArray = Object.values(activeZonasiLayers);
+    
+    if (activeLayersArray.length > 0) {
+        let result = findNearestFeatureLeaflet(map, e.latlng.lat, e.latlng.lng, activeLayersArray);
+        
+        if (result) {
+            // 1. SIMPAN DATA KE ARRAY RIWAYAT
+            ukurZonasiHistory.push({
+                clickLat: e.latlng.lat,
+                clickLng: e.latlng.lng,
+                targetLat: result.nearestPoint[0],
+                targetLng: result.nearestPoint[1],
+                html: result.tooltipHtml
+            });
+
+            // 2. BERSIHKAN PETA (Hapus semua marker yang nge-bug)
+            nearestDistanceLayerGroup.clearLayers();
+
+            // 3. GAMBAR ULANG SEMUA DARI AWAL DENGAN STATUS YANG BENAR
+            ukurZonasiHistory.forEach((item, index) => {
+                let isLast = (index === ukurZonasiHistory.length - 1); // True jika ini titik yang baru saja diklik
+
+                // Gambar Garis
+                let lineOptions = isLast 
+                    ? { color: '#ef4444', dashArray: '5, 5', weight: 2 } // Garis Tegas
+                    : { color: '#ef4444', dashArray: '2, 4', weight: 2, opacity: 0.4 }; // Garis Pudar
+                
+                L.polyline([[item.targetLat, item.targetLng], [item.clickLat, item.clickLng]], lineOptions)
+                    .addTo(nearestDistanceLayerGroup);
+
+                // Gambar Titik Marker
+                let marker = L.marker([item.clickLat, item.clickLng], {
+                    opacity: isLast ? 1.0 : 0.5
+                }).addTo(nearestDistanceLayerGroup);
+
+                // KUNCI ANTI BUG: Pasang Popup atau Tooltip sejak marker baru lahir!
+                if (isLast) {
+                    marker.bindPopup(item.html, { 
+                        closeButton: false, 
+                        autoClose: false, 
+                        closeOnClick: false 
+                    }).openPopup();
+                } else {
+                    marker.bindTooltip(item.html, { 
+                        direction: 'top', 
+                        offset: [0, -10], 
+                        opacity: 0.95 
+                    });
+                }
+            });
+        }
+    }
+});
+
+
+// ==========================================
 // 10. FITUR MOUSE KORDINAT, SEARCH & FULLSCREEN
 // ==========================================
 
@@ -1426,6 +1637,220 @@ document.addEventListener('click', (e) => {
     if (!searchInput.contains(e.target)) suggestionsBox.classList.add('hidden');
 });
 
+// ==========================================
+// 11. ALAT ANALISIS: PETA HOTSPOT SPASIAL MHW & MCS (30 TAHUN)
+// ==========================================
+let hotspotMhwLayer = L.layerGroup().addTo(map);
+let hotspotMcsLayer = L.layerGroup().addTo(map);
+let isHotspotMhwActive = false;
+let isHotspotMcsActive = false;
+
+// --- A. PANEL EDUKASI LITERASI EKOLOGIS (BISA DITUTUP/BUKA) ---
+window.toggleImpactPanel = function(action, type = 'MHW') {
+    let panel = document.getElementById('impact-panel');
+    if (!panel) {
+        panel = document.createElement('div');
+        panel.id = 'impact-panel';
+        document.body.appendChild(panel);
+        panel.className = `fixed right-4 top-[15%] z-[1001] bg-slate-900/95 backdrop-blur-md border-2 p-5 rounded-xl shadow-[0_0_30px_rgba(0,0,0,0.6)] text-white w-80 transform transition-all duration-500 translate-x-[120%] pointer-events-auto overflow-y-auto max-h-[70vh] custom-scrollbar`;
+    }
+
+    // Logika Pintar Buka/Tutup (Toggle)
+    let isHidden = panel.classList.contains('translate-x-[120%]');
+    let show = (action === 'toggle') ? isHidden : action;
+
+    if (show) {
+        let isMHW = (type === 'MHW');
+        let borderColor = isMHW ? 'border-red-500' : 'border-blue-500';
+        let titleIcon = isMHW ? '🔥 Dampak Ekologis MHW' : '❄️ Dampak Ekologis MCS';
+        let titleColor = isMHW ? 'text-red-400' : 'text-blue-300';
+        
+        let textMHW = `Marine Heatwaves (MHWs) merupakan fenomena peningkatan suhu permukaan laut yang anomalinya tinggi dan berlangsung lama secara diskrit di suatu lokasi (Hobday dkk., 2016). Suatu peristiwa dikategorikan sebagai kejadian MHWs apabila suhu air laut melampaui ambang batas persentil ke-90 dari rata-rata klimatologisnya dan bertahan setidaknya selama lima hari berturut-turut (Hobday dkk., 2016; Manta dkk., 2018).<br><br><b class="text-red-300 uppercase text-[10px]">⚠️ Potensi Dampak Ekologis:</b><br>Potensi dampak dari MHWs sangat merusak bagi ekosistem laut, meliputi pemutihan terumbu karang secara massal (Hughes dkk., 2017; Nadimpalli dkk., 2025), penurunan produktivitas klorofil-a (Bond dkk., 2015), serta kematian massal pada invertebrata bentik dan rusaknya padang lamun (Garrabou dkk., 2009; Marbà & Duarte, 2010). Dampak-dampak ekologis ini pada akhirnya mengancam struktur komunitas laut dan memicu kerugian sosial-ekonomi seperti penutupan area perikanan tangkap (Caputi dkk., 2016).`;
+        
+        let textMCS = `Sementara itu, kebalikan dari gelombang panas laut adalah fenomena penurunan suhu air laut ekstrem yang dikenal dengan istilah Marine Cold-Spells atau cold snaps (Firth dkk., 2011; Schlegel dkk., 2017). Sama seperti kejadian gelombang panas, fenomena iklim ekstrem bersuhu dingin ini sangat berpengaruh terhadap fungsi dan struktur ekosistem laut, serta berpotensi memicu tingkat kematian (mortalitas) yang tinggi pada biota laut di suatu perairan (Firth dkk., 2011).`;
+
+        panel.classList.replace('border-red-500', borderColor);
+        panel.classList.replace('border-blue-500', borderColor);
+        
+        panel.innerHTML = `
+            <div class="flex justify-between items-center border-b border-gray-700 pb-2 mb-3 sticky top-0 bg-slate-900/95">
+                <h3 class="font-extrabold ${titleColor} text-xs uppercase tracking-wider">${titleIcon}</h3>
+                <button onclick="window.toggleImpactPanel(false)" class="text-gray-400 hover:text-white transition text-xl font-bold leading-none">&times;</button>
+            </div>
+            <div class="text-[11px] leading-relaxed text-gray-200 text-justify">
+                ${isMHW ? textMHW : textMCS}
+            </div>
+        `;
+        setTimeout(() => panel.classList.remove('translate-x-[120%]'), 50);
+    } else {
+        panel.classList.add('translate-x-[120%]');
+    }
+}
+
+// --- B. MEKANISME SIDEBAR DETAIL (TOMBOL STICKY BAWAH) ---
+window.showHotspotSidebar = function(titikStr, type) {
+    let titik = JSON.parse(decodeURIComponent(titikStr));
+    let color = type === 'MHW' ? 'red' : 'blue';
+    let title = type === 'MHW' ? '🔥 Detail Informasi MHW' : '❄️ Detail Informasi MCS';
+
+    let eventsHtml = titik.events.map(ev => `
+        <div class="border-b border-gray-200 py-2.5 px-1 hover:bg-gray-50 transition flex flex-col gap-1">
+            <div class="flex justify-between items-center">
+                <span class="font-bold text-${color}-800 text-[11px]">⏳ ${ev.tgl}</span>
+                <span class="bg-${color}-100 text-${color}-800 text-[9px] font-bold px-1.5 py-0.5 rounded">${ev.dur} Hari</span>
+            </div>
+            <div class="text-[10px] text-gray-600 font-medium">
+                Suhu ${type === 'MHW' ? 'Puncak Extreme' : 'Terendah Cold'}: 
+                <b class="text-sm text-${color}-600 font-extrabold ml-1">${ev.suhu}°C</b>
+            </div>
+        </div>
+    `).join('');
+
+    // KUNCI: Layout Flex agar listnya scrollable tapi tombolnya nempel (sticky) di bawah
+    let html = `
+        <div class="p-1 font-sans flex flex-col" style="max-height: 55vh;">
+            
+            <div class="shrink-0">
+                <h3 class="font-extrabold text-${color}-900 border-b-2 border-${color}-200 pb-2 mb-3 text-xs uppercase tracking-wide">
+                    ${title}
+                </h3>
+                <div class="text-[11px] mb-2 bg-slate-50 p-2.5 border border-slate-200 rounded-md">
+                    <span class="text-gray-400 font-bold uppercase text-[9px] block mb-1">Koordinat Piksel Data</span>
+                    <b>Latitude:</b> ${titik.lat} <br> <b>Longitude:</b> ${titik.lon} <br>
+                    <b>Total Akumulasi:</b> <span class="text-${color}-600 font-bold">${titik.total} Hari Kejadian</span>
+                </div>
+                <span class="text-[10px] text-gray-500 font-bold uppercase block mb-1">Daftar Kronologi Kejadian:</span>
+            </div>
+            
+            <div class="flex-1 overflow-y-auto pr-1.5 custom-scrollbar border border-gray-200 rounded-md p-1 bg-white shadow-inner mb-3 min-h-[100px]">
+                ${eventsHtml}
+            </div>
+            
+            <div class="shrink-0 border-t border-gray-200 pt-2">
+                <button onclick="window.toggleImpactPanel('toggle', '${type}')" class="w-full bg-${color}-600 text-white text-[11px] font-bold py-2.5 rounded shadow hover:bg-${color}-700 transition flex items-center justify-center gap-2">
+                    📖 Lihat Analisis Dampak Ekologis
+                </button>
+            </div>
+            
+        </div>
+    `;
+
+    const detailSidebar = document.getElementById('detail-sidebar');
+    document.getElementById('sidebar-content').innerHTML = html;
+    detailSidebar.classList.remove('-translate-x-[120%]', 'md:w-[26rem]');
+    detailSidebar.classList.add('left-4', 'md:w-[21rem]', 'max-h-[60vh]');
+}
+
+// --- C. MESIN PEMROSES & PENGGABUNG DATA SPASIAL + LEGENDA TERPUSAT ---
+async function renderHotspotMap(type) {
+    let layerGrp = type === 'MHW' ? hotspotMhwLayer : hotspotMcsLayer;
+    let apiUrl = type === 'MHW' ? 'https://api-webgis-kalteng.onrender.com/api/hotspot/mhw' : 'https://api-webgis-kalteng.onrender.com/api/hotspot/mcs'; 
+    let configKey = type === 'MHW' ? 'hotspot_mhw' : 'hotspot_mcs';
+    let isMHW = (type === 'MHW');
+    
+    matikanSemuaLayer(); 
+    
+    if (isMHW) { 
+        isHotspotMhwActive = true; 
+        document.getElementById('cb-hotspot-mhw').checked = true; 
+    } else { 
+        isHotspotMcsActive = true; 
+        document.getElementById('cb-hotspot-mcs').checked = true; 
+    }
+
+    let btnId = isMHW ? 'btn-hotspot-mhw' : 'btn-hotspot-mcs';
+    let btnColor = isMHW ? 'orange' : 'blue';
+    
+    let btnEl = document.getElementById(btnId);
+    if(btnEl) {
+        btnEl.classList.replace('border-transparent', `border-${btnColor}-400`);
+        btnEl.classList.add('ring-2', `ring-${btnColor}-400`, 'shadow-md');
+    }
+    
+    document.querySelectorAll('.metocean-item, .ekstra-item').forEach(item => {
+        if (item.id !== btnId) item.classList.add('opacity-40', 'pointer-events-none', 'grayscale');
+    });
+
+    document.getElementById('displayPanel').classList.remove('hidden');
+    document.getElementById('displayTitle').textContent = isMHW ? "🗺️ Hotspot Kerapatan MHW (30 Thn)" : "🗺️ Hotspot Kerapatan MCS (30 Thn)";
+    document.getElementById('displayTime').textContent = "Menghitung sebaran spasial...";
+
+    try {
+        const res = await fetch(apiUrl);
+        const dataHotspot = await res.json();
+        if (!dataHotspot || dataHotspot.length === 0) throw new Error("Data kosong");
+
+        // 1. AMBIL KONFIGURASI DARI OBJECT configs
+        const conf = configs[configKey];
+
+        // 2. TAMPILKAN LEGENDA SECARA AMAN (Panggil fungsi master)
+        tampilkanLegenda(conf);
+
+        // 3. RENDER KOTAK KE PETA MENGGUNAKAN SKALA DARI configs
+        dataHotspot.forEach(titik => {
+            let bounds = [ [titik.lat - 0.0415, titik.lon - 0.0415], [titik.lat + 0.0415, titik.lon + 0.0415] ];
+            
+            let warnaFix = conf.scale(titik.total).hex();
+            let encodedData = encodeURIComponent(JSON.stringify(titik));
+            
+            L.rectangle(bounds, { 
+                color: warnaFix, 
+                weight: 0.4, 
+                fillColor: warnaFix, 
+                fillOpacity: 0.85, 
+                interactive: true 
+            })
+            .bindTooltip(`Akumulasi: <b>${titik.total} Hari</b><br><span class="text-[9px] text-gray-400 font-medium">Klik untuk kronologi lengkap</span>`, { direction: 'top', sticky: true })
+            .on('click', function(e) {
+                L.DomEvent.stopPropagation(e);
+                window.showHotspotSidebar(encodedData, type);
+            })
+            .addTo(layerGrp);
+        });
+
+        document.getElementById('displayTime').textContent = `Sebaran Kejadian: ${conf.min} s/d ${conf.max}`;
+    } catch (error) {
+        console.error("Gagal memproses Hotspot:", error);
+        document.getElementById('displayTime').textContent = "Gagal memproses berkas JSON instrumen.";
+    }
+}
+
+// --- D. LOGIKA SAKLAR TOMBOL HOTSPOT (TOGGLE ON/OFF) ---
+function matikanHotspot(type) {
+    // 1. Panggil fungsi sapu jagat untuk membersihkan layar peta
+    matikanSemuaLayer(); 
+    
+    // 2. Hilangkan warna indikator aktif di tombol yang bersangkutan
+    let btnId = type === 'MHW' ? 'btn-hotspot-mhw' : 'btn-hotspot-mcs';
+    let cbId = type === 'MHW' ? 'cb-hotspot-mhw' : 'cb-hotspot-mcs';
+    let btnColor = type === 'MHW' ? 'orange' : 'blue';
+    
+    let btn = document.getElementById(btnId);
+    if (btn) {
+        btn.classList.replace(`border-${btnColor}-400`, 'border-transparent');
+        btn.classList.remove('ring-2', `ring-${btnColor}-400`, 'shadow-md');
+    }
+    
+    // 3. Matikan centang, tutup panel info, dan tutup legenda warna
+    let cb = document.getElementById(cbId);
+    if (cb) cb.checked = false;
+    
+    document.getElementById('displayPanel').classList.add('hidden');
+    const legendaContainer = document.getElementById('legenda-container');
+    if (legendaContainer) legendaContainer.classList.add('hidden');
+}
+
+// Pasang sensor klik ke tombol MHW
+document.getElementById('btn-hotspot-mhw').addEventListener('click', function() {
+    if (isHotspotMhwActive) matikanHotspot('MHW'); 
+    else renderHotspotMap('MHW');
+});
+
+// Pasang sensor klik ke tombol MCS
+document.getElementById('btn-hotspot-mcs').addEventListener('click', function() {
+    if (isHotspotMcsActive) matikanHotspot('MCS'); 
+    else renderHotspotMap('MCS');
+});
 
 // ==========================================
 // 12. ALAT ANALISIS: THERMAL FRONT
@@ -1464,6 +1889,7 @@ document.getElementById('btn-thermal-front').addEventListener('click', function(
         
         // Gambar Petanya!
         renderThermalFront(currentSliderIndex);
+        if (typeof toggleFishPanel === 'function') toggleFishPanel(true); // PANGGIL IKAN!
     }
 });
 
@@ -2846,3 +3272,238 @@ setTimeout(async () => {
         console.log("ℹ️ Radar Selesai: Tidak ada Thermal Front dalam 10 hari ke depan.");
     }
 }, 3500);
+
+
+// ==========================================
+// ALAT ANALISIS: MARINE HEAT WAVES (MHW) HISTORIS
+// ==========================================
+let dataMhwSetahun = [];
+let layerGrupMhw = L.layerGroup().addTo(map);
+
+// 1. Isi otomatis pilihan tahun (1993-2025) ke dropdown saat web dimuat
+window.addEventListener('DOMContentLoaded', () => {
+    let dropdownTahun = document.getElementById("pilih-tahun");
+    if(dropdownTahun) {
+        for(let thn = 1993; thn <= 2025; thn++) {
+            let opsi = new Option(thn, thn);
+            dropdownTahun.add(opsi);
+        }
+    }
+});
+
+// 2. Fungsi memanggil API JSON (Panggil dari dropdown HTML)
+window.fetchDataTahun = async function(tahun) {
+    let dropdownTahun = document.getElementById("pilih-tahun");
+    let selectedTahun = tahun; // Simpan memori tahun yang baru saja diklik
+
+    // Bersihkan layar TAPI paksa dropdown tahun tetap pada angka yang dipilih
+    if (typeof matikanSemuaLayer === 'function') {
+        matikanSemuaLayer();
+        if (dropdownTahun) dropdownTahun.value = selectedTahun; 
+    }
+
+    if (typeof activeZonasiLayers !== 'undefined') {
+        Object.values(activeZonasiLayers).forEach(layer => map.removeLayer(layer));
+        activeZonasiLayers = {};
+    }
+
+    // Jika user pilih "-- Pilih Tahun --" (kosong)
+    if (!tahun) {
+        layerGrupMhw.clearLayers();
+        return;
+    }
+
+    // Tampilkan panel judul saat sedang loading
+    document.getElementById('displayPanel').classList.remove('hidden');
+    document.getElementById('displayTitle').textContent = `Memuat MHW Tahun ${tahun}...`;
+    document.getElementById('displayTime').textContent = `Tunggu sebentar...`;
+
+    try {
+        // PERHATIAN: Ubah localhost:8000 ke URL server Render FastAPI kamu jika sudah deploy
+        let response = await fetch(`https://api-webgis-kalteng.onrender.com/api/historis/mhw/${tahun}`);
+        if (!response.ok) throw new Error("Data tidak ditemukan");
+        
+        dataMhwSetahun = await response.json();
+        
+        // BERHASIL! Ubah wujud Slider Bawah menjadi Bulanan
+        if (typeof setSliderMode === 'function') setSliderMode('monthly');
+        
+        document.getElementById('displayTitle').textContent = `Historis MHW Tahun ${tahun}`;
+        
+        // Langsung gambar peta bulan Januari (Bulan ke-1)
+        window.renderPetaBulan(1);
+
+    } catch (error) {
+        console.error("Error mengambil data MHW:", error);
+        document.getElementById('displayTitle').textContent = `MHW ${tahun} Tidak Tersedia`;
+        document.getElementById('displayTime').textContent = `Error Database`;
+        if (typeof setSliderMode === 'function') setSliderMode('hourly'); // Kembalikan jika error
+    }
+};
+
+// 3. Fungsi menggambar kotak poligon merah (Grid MHW)
+window.renderPetaBulan = function(bulan) {
+    layerGrupMhw.clearLayers();
+    let namaBulan = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
+    
+    // Ambil teks tahun yang sedang aktif dari dropdown
+    let dropdownTahun = document.getElementById("pilih-tahun");
+    let tahunText = dropdownTahun ? dropdownTahun.value : "";
+
+    document.getElementById('displayTime').textContent = `Bulan: ${namaBulan[bulan - 1]} ${tahunText}`;
+    
+    if (!dataMhwSetahun || dataMhwSetahun.length === 0) return;
+
+    // Filter data khusus untuk bulan yang dipilih, DAN wajib minimal 5 hari (Hobday dkk., 2016)
+    let dataBulanIni = dataMhwSetahun.filter(item => 
+        parseInt(item.bln) === parseInt(bulan) && parseInt(item.hari_mhw) >= 5
+    );
+    
+    dataBulanIni.forEach(titik => {
+        // RUMUS OPACITY LAMA DIHAPUS AGAR TIDAK PUDAR LAGI
+        let bounds = [ [titik.lat - 0.0415, titik.lon - 0.0415], [titik.lat + 0.0415, titik.lon + 0.0415] ];
+        
+        // GUNAKAN KODE WARNA DAN OPASITAS YANG SAMA PERSIS DENGAN EARLY WARNING
+        L.rectangle(bounds, { 
+            color: "#ef4444",    // Merah cerah Tailwind
+            weight: 1,           // Tambahkan ketebalan garis tepi
+            fillColor: "#ef4444", 
+            fillOpacity: 0.6,    // Kunci opasitas agar secerah EWS
+            interactive: true 
+        })
+        .bindPopup(`
+            <div class="p-1 text-center">
+                <b class="text-red-700 text-xs uppercase block border-b border-red-200 pb-1 mb-1">🔥 Historis MHW</b>
+                <span class="text-[10px] text-gray-700">Tahun ${tahunText} - Bulan ${namaBulan[bulan-1]}</span><br>
+                <span class="text-[10px] text-gray-700">Durasi Anomali Panas:</span><br>
+                <b class="text-lg text-red-600">${titik.hari_mhw} Hari</b> <span class="text-[9px] text-gray-500">berturut-turut</span>
+            </div>
+        `).addTo(layerGrupMhw);
+    });
+};
+
+// ==========================================
+// ALAT ANALISIS: EARLY WARNING SYSTEM (MHW & MCS)
+// ==========================================
+let ewsLayer = null;
+let activeEwsType = null;
+
+async function toggleEWS(type) {
+    let isCurrentlyActive = (activeEwsType === type);
+    matikanSemuaLayer();
+
+    if (!isCurrentlyActive) {
+        activeEwsType = type;
+        let btnId = type === 'mhw' ? 'btn-ews-mhw' : 'btn-ews-mcs';
+        let cbId = type === 'mhw' ? 'cb-ews-mhw' : 'cb-ews-mcs';
+        
+        document.getElementById(cbId).checked = true;
+        let btn = document.getElementById(btnId);
+        btn.classList.replace('border-transparent', type === 'mhw' ? 'border-red-400' : 'border-blue-400');
+        btn.classList.add('ring-2', type === 'mhw' ? 'ring-red-400' : 'ring-blue-400', 'shadow-md');
+        
+        document.querySelectorAll('.metocean-item, .ekstra-item').forEach(item => {
+            if (item.id !== btnId) item.classList.add('opacity-40', 'pointer-events-none', 'grayscale');
+        });
+
+        document.getElementById('displayPanel').classList.remove('hidden');
+        document.getElementById('displayTitle').textContent = type === 'mhw' ? "🚨 EWS Panas (MHW)" : "❄️ EWS Dingin (MCS)";
+        document.getElementById('displayTime').textContent = "Memindai area lautan...";
+
+        try {
+            // URL Render-mu nanti dimasukkan ke sini ya kalau sudah di-deploy!
+            const res = await fetch(`https://api-webgis-kalteng.onrender.com/api/${type === 'mhw' ? 'mhw' : 'mcs'}/realtime`);
+            if (!res.ok) throw new Error("Data EWS belum tersedia");
+            const dataEws = await res.json();
+            
+            document.getElementById('displayTime').textContent = `Tgl Analisis: ${dataEws.tanggal_analisis}`;
+            
+            if (ewsLayer) { map.removeLayer(ewsLayer); }
+            ewsLayer = L.layerGroup().addTo(map);
+
+            if (dataEws.data_peringatan.length === 0) {
+                alert(`Aman! Tidak terdeteksi fenomena Ekstrem ${type.toUpperCase()} di Perairan Kalteng hari ini.`);
+                return;
+            }
+
+            let colorHex = type === 'mhw' ? "#ef4444" : "#0ea5e9"; // Merah MHW, Biru Terang MCS
+            let titleText = type === 'mhw' ? "🔥 Bahaya Panas (MHW)" : "❄️ Bahaya Dingin (MCS)";
+
+            dataEws.data_peringatan.forEach(titik => {
+                let bounds = [ [titik.lat - 0.0415, titik.lon - 0.0415], [titik.lat + 0.0415, titik.lon + 0.0415] ];
+                L.rectangle(bounds, { color: colorHex, weight: 1, fillColor: colorHex, fillOpacity: 0.6 })
+                .bindPopup(`
+                    <div class="text-center">
+                        <b style="color:${colorHex}" class="text-xs uppercase block border-b border-gray-200 pb-1 mb-1">${titleText}</b>
+                        <span class="text-[10px] text-gray-700">Suhu Prediksi: <b>${titik.suhu_prediksi} °C</b></span><br>
+                        <span class="text-[10px] text-gray-700">Batas Toleransi: <b>${titik.batas_wajar} °C</b></span>
+                    </div>
+                `).addTo(ewsLayer);
+            });
+
+        } catch (error) {
+            console.error(error);
+            document.getElementById('displayTime').textContent = "Gagal memuat sistem radar";
+        }
+    } else {
+        activeEwsType = null;
+        if (ewsLayer) { map.removeLayer(ewsLayer); ewsLayer = null; }
+    }
+}
+
+// Pasang sensor klik untuk tombolnya!
+const btnMhw = document.getElementById('btn-ews-mhw');
+const btnMcs = document.getElementById('btn-ews-mcs');
+if (btnMhw) btnMhw.addEventListener('click', () => toggleEWS('mhw'));
+if (btnMcs) btnMcs.addEventListener('click', () => toggleEWS('mcs'));
+
+
+
+// ==========================================
+// FITUR EKSTRA: PANEL POTENSI IKAN THERMAL FRONT
+// ==========================================
+function toggleFishPanel(show) {
+    let fishPanel = document.getElementById('fish-panel');
+    
+    // Jika elemen belum ada, kita buat (Create Element)
+    if (!fishPanel) {
+        fishPanel = document.createElement('div');
+        fishPanel.id = 'fish-panel';
+        
+        // KUNCI UTAMA: Mengubah z-[1000] menjadi z-[900] agar posisinya berada di bawah tumpukan menu parameter
+        fishPanel.className = 'fixed right-4 bottom-28 z-[900] bg-blue-900/90 backdrop-blur-md border-2 border-blue-400 p-4 rounded-xl shadow-[0_0_20px_rgba(59,130,246,0.6)] text-white w-64 transform transition-all duration-500 translate-x-[120%] pointer-events-none';
+        
+        fishPanel.innerHTML = `
+            <h3 class="font-bold text-yellow-400 border-b border-blue-500 pb-2 mb-3 text-xs flex items-center gap-2 uppercase tracking-wider">
+                <span class="text-lg">🎣</span> Potensi Tangkapan Pelagis
+            </h3>
+            <p class="text-[10px] text-blue-100 mb-3 leading-tight italic">Thermal Front terdeteksi! Area ini memicu upwelling nutrien yang mengundang kawanan ikan:</p>
+            <ul class="space-y-2 text-xs font-bold">
+                <li class="flex items-center gap-3 bg-blue-800/50 p-1.5 rounded border border-blue-700/50 shadow-inner">
+                    <span class="text-2xl animate-bounce">🐟</span> 
+                    <div class="leading-tight">Cakalang <br><i class="text-[9px] text-blue-300 font-normal">Katsuwonus pelamis</i></div>
+                </li>
+                <li class="flex items-center gap-3 bg-blue-800/50 p-1.5 rounded border border-blue-700/50 shadow-inner">
+                    <span class="text-2xl animate-pulse">🐠</span> 
+                    <div class="leading-tight">Tuna Sirip Kuning <br><i class="text-[9px] text-blue-300 font-normal">Thunnus albacares</i></div>
+                </li>
+                <li class="flex items-center gap-3 bg-blue-800/50 p-1.5 rounded border border-blue-700/50 shadow-inner">
+                    <span class="text-2xl animate-bounce" style="animation-delay: 0.3s">🐟</span> 
+                    <div class="leading-tight">Tongkol <br><i class="text-[9px] text-blue-300 font-normal">Euthynnus sp.</i></div>
+                </li>
+                <li class="flex items-center gap-3 bg-blue-800/50 p-1.5 rounded border border-blue-700/50 shadow-inner">
+                    <span class="text-2xl animate-pulse" style="animation-delay: 0.5s">🐡</span> 
+                    <div class="leading-tight">Lemuru <br><i class="text-[9px] text-blue-300 font-normal">Sardinella lemuru</i></div>
+                </li>
+            </ul>
+        `;
+        document.body.appendChild(fishPanel);
+    }
+
+    // Tampilkan atau Sembunyikan dengan animasi slide (translate-x)
+    if (show) {
+        setTimeout(() => fishPanel.classList.remove('translate-x-[120%]'), 100);
+    } else {
+        fishPanel.classList.add('translate-x-[120%]');
+    }
+}

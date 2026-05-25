@@ -358,3 +358,82 @@ def get_tide_srgi(station_code: str):
         else:
             # Kalau server baru nyala dan langsung error (belum punya cache)
             return {"error": f"Koneksi ke SRGI terputus dan belum ada memori data terakhir. ({str(e)})"}
+
+
+import os
+import json
+from fastapi.responses import JSONResponse
+from fastapi import HTTPException
+
+# Tambahkan rute ini di bawah rute-rute yang sudah ada di main.py kamu
+@app.get("/api/historis/mhw/{tahun}")
+async def get_historis_mhw(tahun: int):
+    # Cari lokasi file JSON berdasarkan tahun yang diminta pengguna
+    file_path = f"json_mhw_kalteng/mhw_{tahun}.json"
+    
+    # Validasi jika file tahun tidak ditemukan
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="Data tahun tersebut tidak tersedia.")
+    
+    # Buka dan kirimkan data JSON
+    with open(file_path, "r") as f:
+        data_json = json.load(f)
+        
+    return JSONResponse(content=data_json)
+
+
+# (Tambahkan di bawah endpoint-endpoint yang sudah ada)
+
+@app.get("/api/mhw/realtime")
+async def get_ews_mhw_hari_ini():
+    """
+    Menyajikan data Early Warning System MHW harian ke WEBGIS.
+    """
+    file_path = "ews_mhw_hari_ini.json"
+    
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="Data radar EWS hari ini belum tersedia.")
+        
+    with open(file_path, "r") as f:
+        data = json.load(f)
+        
+    return JSONResponse(content=data)
+
+@app.get("/api/mcs/realtime")
+async def get_ews_mcs_hari_ini():
+    """
+    Menyajikan data Early Warning System MCS harian ke WEBGIS.
+    """
+    file_path = "ews_mcs_hari_ini.json"
+    
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="Data radar EWS MCS hari ini belum tersedia.")
+        
+    with open(file_path, "r") as f:
+        data = json.load(f)
+        
+    return JSONResponse(content=data)
+
+# (Pastikan kamu menyesuaikan import dengan struktur main.py milikmu, biasanya pakai @app.get)
+
+@app.get("/api/hotspot/{tipe_hotspot}")
+async def get_hotspot_data(tipe_hotspot: str):
+    """
+    Mengirimkan data JSON Hotspot 30 Tahun ke WebGIS
+    tipe_hotspot: 'mhw' atau 'mcs'
+    """
+    tipe_hotspot = tipe_hotspot.lower()
+    if tipe_hotspot not in ['mhw', 'mcs']:
+        raise HTTPException(status_code=400, detail="Tipe hotspot tidak valid. Pilih 'mhw' atau 'mcs'.")
+        
+    file_name = f"hotspot_{tipe_hotspot}.json"
+    
+    # Mengecek apakah file JSON ada di folder yang sama dengan main.py
+    if not os.path.exists(file_name):
+        raise HTTPException(status_code=404, detail=f"File {file_name} tidak ditemukan di server.")
+        
+    # Membaca dan mengirimkan isi JSON ke frontend
+    with open(file_name, "r") as f:
+        data = json.load(f)
+        
+    return data

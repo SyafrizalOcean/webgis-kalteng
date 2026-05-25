@@ -21,6 +21,7 @@
     <!-- Library Driver.js untuk Tour Peta -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/driver.js@1.0.1/dist/driver.css"/>
     <script src="https://cdn.jsdelivr.net/npm/driver.js@1.0.1/dist/driver.js.iife.js"></script>
+    <script src="https://unpkg.com/leaflet-geometryutil@0.9.3/src/leaflet.geometryutil.js"></script>
 
     <style>
         .parameter-list::-webkit-scrollbar { width: 6px; }
@@ -89,7 +90,7 @@
             <button id="tab-metocean" class="flex-1 px-4 py-1.5 rounded-full text-xs font-semibold text-gray-600 hover:bg-gray-200">MetOcean</button>
         </div>
 
-    <div id="parameter-list-zonasi" class="parameter-list flex flex-col space-y-2 overflow-y-auto max-h-56 pr-2">
+        <div id="parameter-list-zonasi" class="parameter-list flex flex-col space-y-2 overflow-y-auto max-h-56 pr-2">
             <div class="zonasi-item flex items-center justify-between px-3 py-2 bg-gray-100 rounded border border-gray-200 hover:bg-gray-200 transition cursor-pointer" data-file="collected/zonasi.geojson" data-name="Zonasi KKP">
                 <span class="text-xs font-medium">Zonasi KKP</span><span>🗺️</span>
             </div>
@@ -112,27 +113,70 @@
                 <span class="text-xs font-medium">Migrasi Biota Laut</span><span>🐋</span>
             </div>
         </div>
+
         <div id="parameter-list-metocean" class="parameter-list flex flex-col space-y-3 overflow-y-auto max-h-[45vh] pr-1 hidden">
             
             <div class="border border-gray-300 rounded-lg p-2 bg-gray-50 shadow-sm">
                 <h4 class="text-[11px] font-extrabold text-gray-800 mb-2">Alat Analisis Spesifik</h4>
-                <div class="grid grid-cols-2 md:grid-cols-3 gap-2">
-                    <div class="ekstra-item relative flex flex-col items-center justify-end h-[70px] border-2 border-transparent bg-white rounded-md shadow-sm overflow-hidden cursor-pointer hover:border-blue-400 transition group" id="btn-thermal-front">
+                
+                <div class="mhw-panel mb-3 p-2 bg-gradient-to-r from-red-50 to-blue-50 border border-gray-200 rounded text-[10px]">
+                    <h5 class="font-bold text-gray-800 mb-2 text-center uppercase tracking-wide">Analisis Historis MHW & MCS</h5>
+                    
+                    <div class="flex gap-2 items-center mb-1">
+                        <label class="w-10 font-bold text-gray-700">Tahun:</label>
+                        <select id="pilih-tahun" class="flex-1 border border-gray-300 py-1 px-2 rounded outline-none font-bold text-blue-900 bg-white" onchange="if(typeof window.fetchDataTahun === 'function') window.fetchDataTahun(this.value)">
+                            <option value="">-- Pilih Tahun --</option>
+                        </select>
+                    </div>
+                    <p class="text-[9px] text-gray-500 italic text-center leading-tight">Pilih tahun untuk mengubah Slider Bawah menjadi pencarian Bulanan.</p>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-2 mb-2">
+                    <div class="ekstra-item relative flex flex-col items-center justify-end h-[60px] border-2 border-transparent bg-white rounded-md shadow-sm overflow-hidden cursor-pointer hover:border-red-400 transition group" id="btn-ews-mhw">
+                        <input type="checkbox" id="cb-ews-mhw" class="absolute top-1 left-1 w-3 h-3 z-20 pointer-events-none accent-red-600">
+                        <div class="absolute inset-0 bg-gradient-to-br from-red-500 via-red-600 to-yellow-500 opacity-70 group-hover:opacity-100 transition animate-pulse"></div>
+                        <span class="absolute top-1 right-1 text-[10px] drop-shadow-md z-10 bg-white/50 rounded-full w-4 h-4 flex items-center justify-center">🚨</span>
+                        <div class="w-full bg-slate-800/90 text-white text-[9px] font-bold text-center py-1 z-10 leading-tight">EWS MHW (Panas)</div>
+                    </div>
+                    <div class="ekstra-item relative flex flex-col items-center justify-end h-[60px] border-2 border-transparent bg-white rounded-md shadow-sm overflow-hidden cursor-pointer hover:border-blue-400 transition group" id="btn-ews-mcs">
+                        <input type="checkbox" id="cb-ews-mcs" class="absolute top-1 left-1 w-3 h-3 z-20 pointer-events-none accent-blue-600">
+                        <div class="absolute inset-0 bg-gradient-to-br from-cyan-300 to-blue-600 opacity-70 group-hover:opacity-100 transition animate-pulse"></div>
+                        <span class="absolute top-1 right-1 text-[10px] drop-shadow-md z-10 bg-white/50 rounded-full w-4 h-4 flex items-center justify-center">❄️</span>
+                        <div class="w-full bg-slate-800/90 text-white text-[9px] font-bold text-center py-1 z-10 leading-tight">EWS MCS (Dingin)</div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2 mb-2">
+                    <div class="ekstra-item relative flex flex-col items-center justify-end h-[60px] border-2 border-transparent bg-white rounded-md shadow-sm overflow-hidden cursor-pointer hover:border-blue-400 transition group" id="btn-thermal-front">
                         <input type="checkbox" id="cb-thermal-front" class="absolute top-1 left-1 w-3 h-3 z-20 pointer-events-none accent-blue-600">
                         <div class="absolute inset-0 bg-gradient-to-br from-orange-400 via-red-500 to-red-700 opacity-70 group-hover:opacity-100 transition"></div>
                         <span class="absolute top-1 right-1 text-[10px] drop-shadow-md z-10 bg-white/50 rounded-full w-4 h-4 flex items-center justify-center">🌪️</span>
                         <div class="w-full bg-slate-800/90 text-white text-[9px] font-bold text-center py-1 z-10 leading-tight">Thermal Front</div>
                     </div>
-                    <div class="ekstra-item relative flex flex-col items-center justify-end h-[70px] border-2 border-transparent bg-white rounded-md shadow-sm overflow-hidden cursor-pointer hover:border-blue-400 transition group" id="btn-tide-station">
+                    <div class="ekstra-item relative flex flex-col items-center justify-end h-[60px] border-2 border-transparent bg-white rounded-md shadow-sm overflow-hidden cursor-pointer hover:border-blue-400 transition group" id="btn-tide-station">
                         <input type="checkbox" id="cb-tide-station" class="absolute top-1 left-1 w-3 h-3 z-20 pointer-events-none accent-blue-600">
                         <div class="absolute inset-0 bg-gradient-to-b from-blue-300 to-blue-600 opacity-70 group-hover:opacity-100 transition"></div>
                         <span class="absolute top-1 right-1 text-[10px] drop-shadow-md z-10 bg-white/50 rounded-full w-4 h-4 flex items-center justify-center">⚓</span>
                         <div class="w-full bg-slate-800/90 text-white text-[9px] font-bold text-center py-1 z-10 leading-tight">Pasang Surut</div>
                     </div>
                 </div>
-            </div>
 
-            <div class="border border-gray-300 rounded-lg p-2 bg-gray-50 shadow-sm">
+                <div class="grid grid-cols-2 gap-2">
+                    <div class="ekstra-item relative flex flex-col items-center justify-end h-[60px] border-2 border-transparent bg-white rounded-md shadow-sm overflow-hidden cursor-pointer hover:border-orange-500 transition group" id="btn-hotspot-mhw">
+                        <input type="checkbox" id="cb-hotspot-mhw" class="absolute top-1 left-1 w-3 h-3 z-20 pointer-events-none accent-orange-600">
+                        <div class="absolute inset-0 bg-gradient-to-br from-amber-400 via-orange-500 to-red-600 opacity-70 group-hover:opacity-100 transition"></div>
+                        <span class="absolute top-1 right-1 text-[10px] drop-shadow-md z-10 bg-white/50 rounded-full w-4 h-4 flex items-center justify-center">🗺️</span>
+                        <div class="w-full bg-slate-800/90 text-white text-[9px] font-bold text-center py-1 z-10 leading-tight">Hotspot MHW (30 Thn)</div>
+                    </div>
+                    <div class="ekstra-item relative flex flex-col items-center justify-end h-[60px] border-2 border-transparent bg-white rounded-md shadow-sm overflow-hidden cursor-pointer hover:border-blue-500 transition group" id="btn-hotspot-mcs">
+                        <input type="checkbox" id="cb-hotspot-mcs" class="absolute top-1 left-1 w-3 h-3 z-20 pointer-events-none accent-blue-600">
+                        <div class="absolute inset-0 bg-gradient-to-br from-cyan-300 via-blue-500 to-indigo-700 opacity-70 group-hover:opacity-100 transition"></div>
+                        <span class="absolute top-1 right-1 text-[10px] drop-shadow-md z-10 bg-white/50 rounded-full w-4 h-4 flex items-center justify-center">🗺️</span>
+                        <div class="w-full bg-slate-800/90 text-white text-[9px] font-bold text-center py-1 z-10 leading-tight">Hotspot MCS (30 Thn)</div>
+                    </div>
+                </div>
+            </div>
+            <div class="border border-gray-300 rounded-lg p-2 bg-gray-50 shadow-sm mt-3">
                 <h4 class="text-[11px] font-extrabold text-gray-800 mb-2">Ocean (Laut)</h4>
                 <div class="grid grid-cols-3 gap-2">
                     <div class="metocean-item relative flex flex-col items-center justify-end h-[70px] border-2 border-transparent bg-white rounded-md shadow-sm overflow-hidden cursor-pointer hover:border-blue-400 transition group" data-type="suhu">
@@ -174,7 +218,7 @@
                 </div>
             </div>
 
-            <div class="border border-gray-300 rounded-lg p-2 bg-gray-50 shadow-sm">
+            <div class="border border-gray-300 rounded-lg p-2 bg-gray-50 shadow-sm mt-3">
                 <h4 class="text-[11px] font-extrabold text-gray-800 mb-2">Meteorologi (Udara)</h4>
                 <div class="grid grid-cols-3 gap-2">
                     <div class="metocean-item relative flex flex-col items-center justify-end h-[70px] border-2 border-transparent bg-white rounded-md shadow-sm overflow-hidden cursor-pointer hover:border-blue-400 transition group" data-type="angin">
@@ -197,24 +241,28 @@
                     </div>
                 </div>
             </div>
+
         </div>
     </div>
 
-    <div class="absolute bottom-16 right-4 z-10 flex flex-col items-end space-y-3 pointer-events-none">
-        <button id="btn-tour" class="pointer-events-auto bg-blue-600 text-white p-3 rounded-full shadow-lg hover:bg-blue-700 transition" title="Mulai Tour WebGIS">✈️</button>
-        <div id="toolbar-bottom" class="pointer-events-auto flex space-x-1 bg-white p-1 rounded shadow-lg text-gray-700 border border-gray-100">
-            <button id="btn-zoom-in" class="p-2 hover:bg-gray-200 rounded">➕</button>
-            <button id="btn-home" class="p-2 hover:bg-gray-200 rounded" title="Kembali ke Tampilan Awal">🏠</button>
-            <button id="btn-zoom-out" class="p-2 hover:bg-gray-200 rounded">➖</button>
-            <button id="btn-measure" class="p-2 hover:bg-gray-200 rounded transition-colors" title="Ukur Jarak">📏</button>
+   <div class="absolute bottom-16 right-4 z-10 flex flex-col items-end space-y-3 pointer-events-none">
+        <button id="btn-tour" class="pointer-events-auto bg-blue-600 text-white p-2.5 text-sm rounded-full shadow-lg hover:bg-blue-700 transition" title="Mulai Tour WebGIS">✈️</button>
+        <div id="toolbar-bottom" class="pointer-events-auto flex space-x-0.5 bg-white p-1 rounded shadow-lg text-gray-700 border border-gray-100 text-sm">
+            <button id="btn-zoom-in" class="p-1.5 hover:bg-gray-200 rounded transition-colors" title="Zoom In">➕</button>
+            <button id="btn-home" class="p-1.5 hover:bg-gray-200 rounded transition-colors" title="Kembali ke Tampilan Awal">🏠</button>
+            <button id="btn-zoom-out" class="p-1.5 hover:bg-gray-200 rounded transition-colors" title="Zoom Out">➖</button>
+            <button id="btn-measure" class="p-1.5 hover:bg-gray-200 rounded transition-colors" title="Ukur Jarak Biasa">📏</button>
             
-            <button id="btn-polygon" class="p-2 hover:bg-gray-200 rounded transition-colors" title="Gambar Area (Polygon)">⬠</button>
-            <button id="btn-download-poly" class="p-2 hover:bg-gray-200 rounded transition-colors" title="Download SHP Area">💾</button>
-            <button id="btn-clear-all" class="p-2 hover:bg-gray-200 rounded text-red-500 transition-colors" title="Bersihkan Semua Layer">🗑️</button>
+            <button id="btn-ukur-zonasi" class="p-1.5 hover:bg-gray-200 rounded transition-colors" title="Ukur Jarak ke Batas Zonasi Terdekat">🎯</button>
             
-            <button id="btn-print" class="p-2 hover:bg-gray-200 rounded" title="Print / Ekspor PDF">🖨️</button>
-            <button id="btn-fullscreen" class="p-2 hover:bg-gray-200 rounded">⛶</button>
+            <button id="btn-polygon" class="p-1.5 hover:bg-gray-200 rounded transition-colors" title="Gambar Area (Polygon)">⬠</button>
+            <button id="btn-download-poly" class="p-1.5 hover:bg-gray-200 rounded transition-colors" title="Download SHP Area">💾</button>
+            <button id="btn-clear-all" class="p-1.5 hover:bg-gray-200 rounded text-red-500 transition-colors" title="Bersihkan Semua Layer">🗑️</button>
+            
+            <button id="btn-print" class="p-1.5 hover:bg-gray-200 rounded transition-colors" title="Print / Ekspor PDF">🖨️</button>
+            <button id="btn-fullscreen" class="p-1.5 hover:bg-gray-200 rounded transition-colors" title="Fullscreen">⛶</button>
         </div>
+    </div>
 
         <div id="legenda-container" class="pointer-events-auto w-full flex flex-col items-end hidden">
             <div id="legenda-warna" class="w-64 h-3 rounded shadow border border-gray-200"></div>
