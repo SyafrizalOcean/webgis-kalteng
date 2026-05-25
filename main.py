@@ -16,7 +16,13 @@ import math
 tide_cache = {}
 
 app = FastAPI(title="MetOcean API Kalteng - Master Hybrid")
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],      # Mengizinkan Vercel, Localhost, dan siapapun mengaksesnya
+    allow_credentials=False,  # KUNCI UTAMA: Harus False jika origins pakai "*"
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 print("🚀 Server Booting: Membuka Data ECMWF & Batimetri...")
 ds_10u = xr.open_dataset('data_nc/10u_kalteng.nc')
