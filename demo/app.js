@@ -171,30 +171,61 @@ const configs = {
 };
 
 // ==========================================
-// MASTER FUNGSI LEGENDA (ANTI-HILANG & ANTI-TENGGELAM)
+// MASTER FUNGSI LEGENDA (RAMPING, SEJAJAR TOOLS, & AUTO-PUSH UP)
 // ==========================================
 function tampilkanLegenda(conf) {
-    const legCont = document.getElementById('legenda-container');
-    if (legCont) {
-        legCont.classList.remove('hidden');
-        legCont.style.display = 'flex';   // Paksa tampil
-        legCont.style.zIndex = '999999';  // KUNCI: Paksa ke tumpukan paling depan agar tidak ditelan peta!
+    let legCont = document.getElementById('legenda-container');
+    
+    // KUNCI UTAMA: Kita cari rumah (container) tempat toolbar berada
+    const toolsWrapper = document.getElementById('toolbar-bottom').parentElement;
+
+    // JIKA KOTAKNYA BELUM ADA, BUAT BARU
+    if (!legCont) {
+        legCont = document.createElement('div');
+        legCont.id = 'legenda-container';
         
-        const legWarna = document.getElementById('legenda-warna');
-        const legMin = document.getElementById('legenda-min');
-        const legMax = document.getElementById('legenda-max');
+        // DESAIN RAMPING (w-full agar otomatis menyamakan lebar toolbar di atasnya)
+        legCont.className = 'pointer-events-auto w-full bg-white/95 backdrop-blur-sm p-1.5 px-2 rounded shadow-md border border-gray-200 z-[999999] transition-all duration-300 flex flex-col hidden mt-2';
         
-        if (legWarna) legWarna.style.background = conf.css;
-        if (legMin) legMin.textContent = conf.min;
-        if (legMax) legMax.textContent = conf.max;
+        legCont.innerHTML = `
+            <div id="legenda-title" class="text-[9px] font-extrabold text-blue-900 uppercase mb-1 text-center tracking-wider truncate">Legenda</div>
+            <div id="legenda-warna" class="w-full h-2 rounded shadow-inner"></div>
+            <div class="flex justify-between text-[9px] font-bold text-gray-600 mt-0.5">
+                <span id="legenda-min">Min</span>
+                <span id="legenda-max">Max</span>
+            </div>
+        `;
     }
+
+    // PAKSA PINDAH RUMAH: Masukkan legenda ke dalam rumah toolbar
+    // Karena rumahnya punya "bottom-16", otomatis toolbar akan terdorong ke atas!
+    if (toolsWrapper && legCont.parentElement !== toolsWrapper) {
+        toolsWrapper.appendChild(legCont);
+    } else if (!toolsWrapper && !legCont.parentElement) {
+        document.body.appendChild(legCont); // Cadangan jika wrapper tidak ditemukan
+    }
+
+    // ISI DATANYA
+    const legWarna = document.getElementById('legenda-warna');
+    const legMin = document.getElementById('legenda-min');
+    const legMax = document.getElementById('legenda-max');
+    const legTitle = document.getElementById('legenda-title');
+
+    if (legTitle && conf.title) legTitle.textContent = conf.title;
+    if (legWarna) legWarna.style.background = conf.css;
+    if (legMin) legMin.textContent = conf.min;
+    if (legMax) legMax.textContent = conf.max;
+
+    // PAKSA TAMPILKAN (Gunakan flex agar strukturnya rapi)
+    legCont.classList.remove('hidden');
+    legCont.style.display = 'flex'; 
 }
 
 function sembunyikanLegenda() {
     const legCont = document.getElementById('legenda-container');
     if (legCont) {
         legCont.classList.add('hidden');
-        legCont.style.display = ''; // Bersihkan gaya paksa agar benar-benar hilang saat ditutup
+        legCont.style.display = 'none'; 
     }
 }
 
