@@ -1080,8 +1080,8 @@ window.buildUnifiedSidebar = async function(lat, lon, zonasiProps = null) {
                         this.innerHTML='Buka Potensi Ikan <span class=\\'text-xl animate-bounce\\'>🐠</span>';
                         this.className='w-full bg-blue-600 text-white text-[12px] font-bold py-3 rounded flex justify-center items-center gap-2 hover:bg-blue-700 transition shadow-md';
                     }
-                " class="w-full bg-red-500 text-white text-[12px] font-bold py-3 rounded flex justify-center items-center gap-2 hover:bg-red-600 transition shadow-md">
-                    Tutup Tampilan Ikan <span class="text-xl animate-bounce">🐟</span>
+                " class="w-full bg-blue-600 text-white text-[12px] font-bold py-3 rounded flex justify-center items-center gap-2 hover:bg-blue-700 transition shadow-md">
+                    Buka Potensi Ikan <span class="text-xl animate-bounce">🐠</span>
                 </button>
             </div>
         </div>`;
@@ -1920,7 +1920,7 @@ document.getElementById('btn-thermal-front').addEventListener('click', function(
         
         // Gambar Petanya!
         renderThermalFront(currentSliderIndex);
-        if (typeof toggleFishPanel === 'function') toggleFishPanel(true); // PANGGIL IKAN!
+        if (typeof toggleFishPanel === 'function') toggleFishPanel(false); // PANGGIL IKAN!
     }
 });
 
@@ -3265,22 +3265,24 @@ setTimeout(async () => {
         // AKSI 1: Jika tulisan/ikon radarnya diklik (Meluncur ke TKP)
         document.getElementById('btn-go-thermal').onclick = (e) => {
             e.stopPropagation();
-            const timeSlider = document.getElementById('timeSlider');
-            if (timeSlider) {
-                timeSlider.value = foundIndex;
-                timeSlider.dispatchEvent(new Event('input')); 
-            }
             
+            // 1. KLIK MENU THERMAL FRONT DULU
+            // Ini akan memanggil Sapu Jagat dan mereset peta & slider ke posisi 0
             const btnThermal = document.getElementById('btn-thermal-front');
             if (btnThermal && typeof isThermalFrontActive !== 'undefined' && !isThermalFrontActive) {
-                btnThermal.click(); 
+                btnThermal.click();
             }
-            removeNotif(); 
-        };
+            
+            // 2. TUNGGU SEBENTAR (Beri waktu Sapu Jagat selesai bekerja)
+            // LALU PAKSA SLIDER MELOMPAT KE WAKTU THERMAL FRONT!
+            setTimeout(() => {
+                const timeSlider = document.getElementById('timeSlider');
+                if (timeSlider) {
+                    timeSlider.value = foundIndex; // Masukkan index waktu temuan radar
+                    timeSlider.dispatchEvent(new Event('input')); // Paksa sistem memuat peta di jam tersebut
+                }
+            }, 150); // Jeda 150 milidetik sangat aman dan mulus
 
-        // AKSI 2: Jika tombol silang (✖) diklik 
-        document.getElementById('btn-close-notif').onclick = (e) => {
-            e.stopPropagation(); 
             removeNotif(); 
         };
 
@@ -3301,7 +3303,27 @@ setTimeout(async () => {
         console.log("✅ Radar Sukses: Thermal Front otomatis ditemukan pada index", foundIndex);
     } else {
         console.log("ℹ️ Radar Selesai: Tidak ada Thermal Front dalam 10 hari ke depan.");
+    
+        // ============================================================
+        // KUNCI UTAMA: TAMPILKAN BANNER INFO JIKA TIDAK ADA DATA
+        // ============================================================
+        const noNotif = document.createElement('div');
+        noNotif.id = 'auto-notif-thermal-none';
+        noNotif.className = "fixed top-5 left-1/2 transform -translate-x-1/2 z-[999999] bg-gradient-to-r from-blue-700 to-indigo-600 backdrop-blur-md text-white px-5 py-2.5 rounded-full shadow-[0_10px_25px_rgba(30,58,138,0.3)] border border-white/20 font-bold flex items-center gap-3";
+        
+        noNotif.innerHTML = `
+            <div class="flex items-center gap-2 text-xs tracking-wide">
+                <span>ℹ️</span> 
+                <span>Informasi: Tidak terdeteksi fenomena <b class="text-yellow-300">Thermal Front</b> di perairan Kalteng dalam 10 hari ke depan.</span>
+            </div>
+            <button onclick="this.parentElement.remove()" class="ml-2 bg-blue-900/50 hover:bg-blue-900 text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px] transition font-bold leading-none">&times;</button>
+        `;
+        document.body.appendChild(noNotif);
+        
+        // Otomatis lenyap dalam 7 detik agar layar kembali bersih secara mandiri
+        setTimeout(() => { if(noNotif) noNotif.remove(); }, 7000);
     }
+
 }, 3500);
 
 
@@ -3538,3 +3560,25 @@ function toggleFishPanel(show) {
         fishPanel.classList.add('translate-x-[120%]');
     }
 }
+
+// ==========================================
+// AUTO-AKTIFKAN PARAMETER SUHU SAAT WEB DIBUKA
+// ==========================================
+window.addEventListener('load', () => {
+    // Tunggu 600ms agar semua skrip & peta siap
+    setTimeout(() => {
+        const itemSuhu = document.querySelector('.metocean-item[data-type="suhu"]');
+        if (itemSuhu) {
+            // Trigger klik pada item Suhu agar layer SST otomatis aktif
+            // Buka panel layer-menu dan pilih tab MetOcean
+            const layerMenu = document.getElementById('layer-menu');
+            if (layerMenu) layerMenu.classList.remove('hidden');
+            const tabMetOcean = document.getElementById('tab-metocean');
+            if (tabMetOcean) tabMetOcean.click();
+            itemSuhu.click();
+            console.log("✓ Parameter Suhu diaktifkan sebagai default");
+        } else {
+            console.warn("Item Suhu tidak ditemukan di halaman");
+        }
+    }, 600);
+});
