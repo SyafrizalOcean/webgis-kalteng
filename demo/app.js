@@ -20,23 +20,49 @@ const layerMenu = document.getElementById('layer-menu');
 document.getElementById('btn-layer-menu').addEventListener('click', () => layerMenu.classList.toggle('hidden'));
 document.getElementById('btn-close-menu').addEventListener('click', () => layerMenu.classList.add('hidden'));
 
-// TAB SWITCH KANAN ATAS
-const tabZonasi = document.getElementById('tab-zonasi'), tabMetOcean = document.getElementById('tab-metocean');
-const listZonasi = document.getElementById('parameter-list-zonasi'), listMetOcean = document.getElementById('parameter-list-metocean');
+// Tab switcher (3 tab: Zonasi, MetOcean, Analisis) — versi lengkap dengan reset
+const tabs = {
+    'tab-zonasi':   'parameter-list-zonasi',
+    'tab-metocean': 'parameter-list-metocean',
+    'tab-analisis': 'parameter-list-analisis',
+};
 
-tabZonasi.addEventListener('click', () => { 
-    tabZonasi.className = "flex-1 px-4 py-1.5 rounded-full text-xs font-semibold bg-blue-900 text-white shadow-md"; 
-    tabMetOcean.className = "flex-1 px-4 py-1.5 rounded-full text-xs font-semibold text-gray-600 hover:bg-gray-200"; 
-    listZonasi.classList.remove('hidden'); 
-    listMetOcean.classList.add('hidden'); 
+function activateTab(activeTabId) {
+    Object.entries(tabs).forEach(([tId, lId]) => {
+        const t = document.getElementById(tId);
+        const l = document.getElementById(lId);
+        if (t) {
+            // RESET TOTAL warna semua tab
+            t.classList.remove('bg-blue-600', 'text-white', 'shadow-md');
+            t.classList.add('text-gray-600', 'hover:bg-gray-200', 'bg-transparent');
+        }
+        if (l) l.classList.add('hidden');
+    });
+    // Aktifkan yang dipilih
+    const activeTab = document.getElementById(activeTabId);
+    if (activeTab) {
+        activeTab.classList.remove('text-gray-600', 'hover:bg-gray-200', 'bg-transparent');
+        activeTab.classList.add('bg-blue-600', 'text-white', 'shadow-md');
+    }
+    const activeList = document.getElementById(tabs[activeTabId]);
+    if (activeList) activeList.classList.remove('hidden');
+}
+
+Object.keys(tabs).forEach(tabId => {
+    const tab = document.getElementById(tabId);
+    if (!tab) return;
+    tab.addEventListener('click', () => {
+        activateTab(tabId);
+        // Matikan widget cuaca ketika user pindah tab
+        if (typeof isWeatherActive !== 'undefined' && isWeatherActive) {
+            turnOffWeatherSystem();
+        }
+    });
 });
 
-tabMetOcean.addEventListener('click', () => { 
-    tabMetOcean.className = "flex-1 px-4 py-1.5 rounded-full text-xs font-semibold bg-blue-900 text-white shadow-md"; 
-    tabZonasi.className = "flex-1 px-4 py-1.5 rounded-full text-xs font-semibold text-gray-600 hover:bg-gray-200"; 
-    listMetOcean.classList.remove('hidden'); 
-    listZonasi.classList.add('hidden'); 
-});
+// Set default tab aktif (panggil setelah DOM ready)
+setTimeout(() => activateTab('tab-zonasi'), 100);
+
 
 // ==========================================
 // 2. INISIALISASI PETA & BASEMAP
@@ -97,6 +123,56 @@ let depthChartInstance = null;
 let activeZonasiLayers = {}; // Untuk menyimpan banyak layer zonasi (Rule 1)
 let currentMetOceanLayer = null; // Untuk kontrol single-select (Rule 2)
 let uploadedShpLayers = []; // Wadah untuk menampung semua SHP yang di-upload user
+
+// ============================================================
+// MAPPING SUMBER DATA — untuk ditampilkan di setiap legenda
+// ============================================================
+const SOURCE_MAP = {
+    // Ocean (Laut) — CMEMS
+    'suhu':       'CMEMS (Copernicus Marine)',
+    'salinitas':  'CMEMS (Copernicus Marine)',
+    'arus':       'CMEMS (Copernicus Marine)',
+    'gelombang':  'CMEMS (Copernicus Marine)',
+    'ssh':        'CMEMS (Copernicus Marine)',
+    
+    // BIG
+    'batimetri':  'BATNAS — BIG',
+    'pasang-surut':'Tide Tables — BIG',
+    
+    // Meteorologi — ECMWF
+    'angin':      'ECMWF Reanalysis',
+    'hujan':      'ECMWF Reanalysis',
+    'msl':        'ECMWF Reanalysis',
+    
+    // Analisis MHW & Thermal Front — CMEMS
+    'mhw':        'CMEMS Marine Heat Wave Analysis',
+    'mcs':        'CMEMS Marine Cold Spell Analysis',
+    'thermal-front': 'CMEMS SST + Algoritma Cayula-Cornillon',
+    'hotspot-mhw': 'CMEMS (Analisis 30 Tahun)',
+    'hotspot-mcs': 'CMEMS (Analisis 30 Tahun)',
+    
+    // Zonasi
+    'zonasi':     'Dinas Kelautan & Perikanan Kalteng',
+    
+    // Analisis Budidaya
+    'lobster':    'Lesmana et al. (2022) — CMEMS + BIG',
+};
+
+// Helper untuk dapatkan sumber data
+function getSource(layerType) {
+    return SOURCE_MAP[layerType] || 'Belum dispesifikasikan';
+}
+
+// Helper: tambahkan baris sumber ke elemen legenda apapun
+function injectSourceLine(legendElement, layerType) {
+    if (!legendElement) return;
+    // Hapus sumber lama jika ada
+    legendElement.querySelector('.source-line')?.remove();
+    const div = document.createElement('div');
+    div.className = 'source-line text-[8px] text-gray-500 italic text-center mt-1.5 pt-1 border-t border-gray-200';
+    div.innerHTML = `📊 Sumber: ${getSource(layerType)}`;
+    legendElement.appendChild(div);
+}
 
 const configs = {
     suhu: { 
@@ -175,18 +251,12 @@ const configs = {
 // ==========================================
 function tampilkanLegenda(conf) {
     let legCont = document.getElementById('legenda-container');
-    
-    // KUNCI UTAMA: Kita cari rumah (container) tempat toolbar berada
     const toolsWrapper = document.getElementById('toolbar-bottom').parentElement;
 
-    // JIKA KOTAKNYA BELUM ADA, BUAT BARU
     if (!legCont) {
         legCont = document.createElement('div');
         legCont.id = 'legenda-container';
-        
-        // DESAIN RAMPING (w-full agar otomatis menyamakan lebar toolbar di atasnya)
         legCont.className = 'pointer-events-auto w-full bg-white/95 backdrop-blur-sm p-1.5 px-2 rounded shadow-md border border-gray-200 z-[999999] transition-all duration-300 flex flex-col hidden mt-2';
-        
         legCont.innerHTML = `
             <div id="legenda-title" class="text-[9px] font-extrabold text-blue-900 uppercase mb-1 text-center tracking-wider truncate">Legenda</div>
             <div id="legenda-warna" class="w-full h-2 rounded shadow-inner"></div>
@@ -194,31 +264,34 @@ function tampilkanLegenda(conf) {
                 <span id="legenda-min">Min</span>
                 <span id="legenda-max">Max</span>
             </div>
+            <div id="legenda-source" class="text-[8px] text-gray-500 italic text-center mt-1 pt-1 border-t border-gray-200 truncate"></div>
         `;
     }
 
-    // PAKSA PINDAH RUMAH: Masukkan legenda ke dalam rumah toolbar
-    // Karena rumahnya punya "bottom-16", otomatis toolbar akan terdorong ke atas!
     if (toolsWrapper && legCont.parentElement !== toolsWrapper) {
         toolsWrapper.appendChild(legCont);
     } else if (!toolsWrapper && !legCont.parentElement) {
-        document.body.appendChild(legCont); // Cadangan jika wrapper tidak ditemukan
+        document.body.appendChild(legCont);
     }
 
-    // ISI DATANYA
-    const legWarna = document.getElementById('legenda-warna');
-    const legMin = document.getElementById('legenda-min');
-    const legMax = document.getElementById('legenda-max');
-    const legTitle = document.getElementById('legenda-title');
+    const legWarna  = document.getElementById('legenda-warna');
+    const legMin    = document.getElementById('legenda-min');
+    const legMax    = document.getElementById('legenda-max');
+    const legTitle  = document.getElementById('legenda-title');
+    const legSource = document.getElementById('legenda-source');
 
     if (legTitle && conf.title) legTitle.textContent = conf.title;
     if (legWarna) legWarna.style.background = conf.css;
     if (legMin) legMin.textContent = conf.min;
     if (legMax) legMax.textContent = conf.max;
+    
+    // ── Tambahkan sumber data otomatis berdasarkan layer aktif ──
+    if (legSource && typeof activeDataType !== 'undefined' && activeDataType) {
+        legSource.innerHTML = `📊 Sumber: <b>${getSource(activeDataType)}</b>`;
+    }
 
-    // PAKSA TAMPILKAN (Gunakan flex agar strukturnya rapi)
     legCont.classList.remove('hidden');
-    legCont.style.display = 'flex'; 
+    legCont.style.display = 'flex';
 }
 
 function sembunyikanLegenda() {
@@ -486,14 +559,19 @@ function showDetail(props) {
 function closeSidebar() {
     const detailSidebar = document.getElementById('detail-sidebar');
     if(detailSidebar) {
-        detailSidebar.classList.add('-translate-x-[120%]'); // Sembunyikan sidebar
+        detailSidebar.classList.add('-translate-x-[120%]');
         
-        // Tarik balik Widget Cuaca ke kiri
         const weatherWidget = document.getElementById('weather-widget');
         if (weatherWidget) {
             weatherWidget.classList.remove('md:left-[440px]');
             weatherWidget.classList.add('md:left-4');
         }
+    }
+    
+    // === TAMBAHAN: Sembunyikan panel ikan ===
+    const fishPanel = document.getElementById('fish-panel');
+    if (fishPanel) {
+        fishPanel.classList.add('translate-x-[120%]');
     }
 }
 
@@ -721,6 +799,16 @@ function matikanSemuaLayer() {
     const depthCont = document.getElementById('depth-container');
     if (depthCont) depthCont.classList.add('hidden');
     
+    // Matikan layer lobster
+    if (isLobsterActive) {
+        isLobsterActive = false;
+        if (lobsterLayer) { map.removeLayer(lobsterLayer); lobsterLayer = null; }
+        document.getElementById('legenda-lobster')?.remove();
+        document.getElementById('btn-lobster')?.classList.remove('ring-2','ring-orange-400','shadow-md');
+        const cb = document.getElementById('cb-lobster');
+        if (cb) cb.checked = false;
+    }
+
     // Sembunyikan Panel Ikan 
     const fishPanel = document.getElementById('fish-panel');
     if (fishPanel) fishPanel.classList.add('translate-x-[120%]'); 
@@ -1590,31 +1678,119 @@ map.on('mousemove', function(e) {
     if (wxCoord) wxCoord.innerHTML = latlonText;
 });
 
-// B. Pencarian Lokasi (Geocoding API OpenStreetMap)
+// B. Pencarian Lokasi — bisa nama tempat ATAU koordinat (DMS/desimal)
 document.getElementById('input-search').addEventListener('keypress', function(e) {
-    if (e.key === 'Enter') {
-        let query = this.value;
-        if (!query) return;
-        this.value = "Mencari...";
-        
-        fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${query}`)
+    if (e.key !== 'Enter') return;
+    
+    let query = this.value.trim();
+    if (!query) return;
+    
+    // ── 1. Coba deteksi sebagai KOORDINAT dulu ───────────────────
+    const coord = parseCoordinates(query);
+    if (coord) {
+        map.flyTo([coord.lat, coord.lon], 12);
+        L.marker([coord.lat, coord.lon]).addTo(map)
+            .bindPopup(`📍 Koordinat:<br><b>${coord.lat.toFixed(5)}, ${coord.lon.toFixed(5)}</b><br><span class="text-[10px] text-gray-500">${coord.format}</span>`)
+            .openPopup();
+        suggestionsBox.classList.add('hidden');
+        return;
+    }
+    
+    // ── 2. Kalau bukan koordinat, cari nama tempat via Nominatim ─
+    this.value = "Mencari...";
+    fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`)
         .then(res => res.json())
         .then(data => {
-            this.value = query; // Kembalikan teks asli
+            this.value = query;
             if (data && data.length > 0) {
-                let lat = data[0].lat;
-                let lon = data[0].lon;
+                let lat = parseFloat(data[0].lat);
+                let lon = parseFloat(data[0].lon);
                 map.flyTo([lat, lon], 12);
-                L.marker([lat, lon]).addTo(map).bindPopup(data[0].display_name).openPopup();
+                L.marker([lat, lon]).addTo(map)
+                    .bindPopup(data[0].display_name).openPopup();
             } else {
-                alert("Lokasi tidak ditemukan!");
+                alert("Lokasi tidak ditemukan!\n\nFormat koordinat yang didukung:\n• Desimal: -2.21, 113.92\n• DMS:    2°12'32\"S 113°55'17\"E\n• DDM:    2 12.53 S 113 55.28 E");
             }
         }).catch(() => {
             this.value = query;
             alert("Gagal mencari lokasi.");
         });
-    }
 });
+
+
+// ============================================================
+// FUNGSI PARSER KOORDINAT — mendukung berbagai format
+// ============================================================
+// Format yang didukung:
+//   • Desimal             : -2.2089, 113.9213   atau   -2.2089 113.9213
+//   • Desimal dengan arah : 2.2089S 113.9213E   atau   2.2089 S, 113.9213 E
+//   • DMS (Deg Min Sec)   : 2°12'32"S 113°55'17"E
+//   • DDM (Deg Decimal M) : 2°12.53'S 113°55.28'E
+//   • Dengan label        : lat -2.21 lon 113.92
+function parseCoordinates(input) {
+    if (!input) return null;
+    
+    let str = input.trim()
+        .replace(/lat[:\s]*/gi, '')
+        .replace(/lon[g]?[:\s]*/gi, '')
+        .replace(/[,;]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    
+    // ─── 1. DMS dengan simbol °, ', " dan arah huruf NSEW ────────
+    //    Contoh: 2°12'32"S 113°55'17"E   atau   2 12 32 S 113 55 17 E
+    const dmsRegex = /([0-9]+)[°\s:]+([0-9.]+)(?:['\s:m]+([0-9.]+)["s]*)?\s*([NSEW])\s+([0-9]+)[°\s:]+([0-9.]+)(?:['\s:m]+([0-9.]+)["s]*)?\s*([NSEW])/i;
+    const dmsMatch = str.match(dmsRegex);
+    if (dmsMatch) {
+        const lat = dmsToDecimal(dmsMatch[1], dmsMatch[2], dmsMatch[3] || 0, dmsMatch[4]);
+        const lon = dmsToDecimal(dmsMatch[5], dmsMatch[6], dmsMatch[7] || 0, dmsMatch[8]);
+        if (isValid(lat, lon)) return { lat, lon, format: 'DMS' };
+    }
+    
+    // ─── 2. Desimal dengan huruf arah ────────────────────────────
+    //    Contoh: 2.2089S 113.9213E   atau   2.2089 S 113.9213 E
+    const dirRegex = /([0-9]+\.?[0-9]*)\s*([NSEW])\s+([0-9]+\.?[0-9]*)\s*([NSEW])/i;
+    const dirMatch = str.match(dirRegex);
+    if (dirMatch) {
+        let v1 = parseFloat(dirMatch[1]);
+        let v2 = parseFloat(dirMatch[3]);
+        const d1 = dirMatch[2].toUpperCase();
+        const d2 = dirMatch[4].toUpperCase();
+        if (d1 === 'S') v1 = -v1;
+        if (d1 === 'W') v1 = -v1;
+        if (d2 === 'S') v2 = -v2;
+        if (d2 === 'W') v2 = -v2;
+        // Tentukan mana lat/lon berdasarkan arah
+        const lat = (d1 === 'N' || d1 === 'S') ? v1 : v2;
+        const lon = (d1 === 'E' || d1 === 'W') ? v1 : v2;
+        if (isValid(lat, lon)) return { lat, lon, format: 'Desimal + arah' };
+    }
+    
+    // ─── 3. Desimal biasa dengan tanda minus ─────────────────────
+    //    Contoh: -2.2089, 113.9213   atau   -2.2089 113.9213
+    const decRegex = /(-?[0-9]+\.?[0-9]*)\s+(-?[0-9]+\.?[0-9]*)/;
+    const decMatch = str.match(decRegex);
+    if (decMatch) {
+        const lat = parseFloat(decMatch[1]);
+        const lon = parseFloat(decMatch[2]);
+        if (isValid(lat, lon)) return { lat, lon, format: 'Desimal' };
+    }
+    
+    return null;
+}
+
+function dmsToDecimal(deg, min, sec, direction) {
+    let dec = parseFloat(deg) + parseFloat(min) / 60 + parseFloat(sec) / 3600;
+    const dir = (direction || '').toUpperCase();
+    if (dir === 'S' || dir === 'W') dec = -dec;
+    return dec;
+}
+
+function isValid(lat, lon) {
+    return !isNaN(lat) && !isNaN(lon) 
+        && lat >= -90 && lat <= 90 
+        && lon >= -180 && lon <= 180;
+}
 
 // C. Fitur Fullscreen
 document.getElementById('btn-fullscreen').addEventListener('click', () => {
@@ -1640,8 +1816,19 @@ searchInput.addEventListener('input', function() {
         suggestionsBox.classList.add('hidden');
         return;
     }
-
-    fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${query}&limit=5&countrycodes=id`)
+    
+    // Kalau input terdeteksi sebagai koordinat, jangan tampilkan suggestion
+    if (parseCoordinates(query)) {
+        suggestionsBox.innerHTML = `
+            <div class="px-4 py-2 text-xs text-green-700 bg-green-50 border-l-4 border-green-500">
+                📍 Format koordinat terdeteksi — tekan <b>Enter</b> untuk meluncur ke lokasi
+            </div>
+        `;
+        suggestionsBox.classList.remove('hidden');
+        return;
+    }
+    
+    fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&countrycodes=id`)
         .then(res => res.json())
         .then(data => {
             suggestionsBox.innerHTML = '';
@@ -2798,27 +2985,38 @@ document.body.appendChild(weatherWidget);
 // --- MESIN BUKA TUTUP TABEL CUACA CERDAS ---
 window.openForecastPanel = function() {
     const panel = document.getElementById('bottom-forecast-panel');
-    const mainCoordInfo = document.getElementById('coord-info'); // Ini LatLon asli yang nempel di peta
+    const mainCoordInfo = document.getElementById('coord-info');
     
-    if (panel) panel.classList.remove('translate-y-full');
+    if (!panel) {
+        console.error("❌ Panel 'bottom-forecast-panel' tidak ditemukan di DOM");
+        return;
+    }
     
-    // Sembunyikan LatLon asli agar tidak balapan/berantakan
+    panel.classList.remove('translate-y-full');
+    panel.style.transform = 'translateY(0)';  // paksa override
+    
     if (mainCoordInfo) {
         mainCoordInfo.style.transition = "opacity 0.3s";
         mainCoordInfo.style.opacity = "0"; 
     }
+    
+    console.log("✓ Forecast panel terbuka");
 };
 
 window.closeForecastPanel = function() {
     const panel = document.getElementById('bottom-forecast-panel');
     const mainCoordInfo = document.getElementById('coord-info');
     
-    if (panel) panel.classList.add('translate-y-full');
+    if (!panel) return;
     
-    // Munculkan lagi LatLon asli di peta
+    panel.classList.add('translate-y-full');
+    panel.style.transform = '';  // reset agar class translate-y-full ambil alih
+    
     if (mainCoordInfo) {
         mainCoordInfo.style.opacity = "1"; 
     }
+    
+    console.log("✓ Forecast panel tertutup");
 };
 
 // --- 3. BUAT PANEL BAWAH (WINDY STYLE) ---
@@ -2963,35 +3161,40 @@ async function updateWeatherWidget(lat, lon) {
     }
 }
 
-// Tambahkan variabel baru ini di dekat isWeatherActive
-let isWeatherManuallyToggled = false; 
+// ============================================================
+// PENGATURAN CUACA — SKENARIO B (FINAL)
+// ============================================================
+// Page load    → widget muncul Palangkaraya (first impression)
+// Klik APAPUN  → widget mati total (klik peta, tombol parameter, search, dll)
+// Tombol 🌤️   → on/off keseluruhan widget
+// Saat mode manual (ON via tombol): klik peta → update + buka tabel ramalan
+// ============================================================
+
+const PALANGKARAYA_LAT = -2.2089;
+const PALANGKARAYA_LON = 113.9213;
+
+let isFirstImpression = true;   // true = widget muncul karena auto-start, bukan tombol
 
 function turnOffWeatherSystem() {
     isWeatherActive = false;
-    isWeatherManuallyToggled = false; // Reset penanda saat mati
-    
+    isFirstImpression = false;
     weatherWidget.classList.add('hidden');
     forecastPanel.classList.add('translate-y-full');
     if (weatherToggleBtn) {
         weatherToggleBtn.classList.replace('bg-blue-600', 'bg-slate-800');
         weatherToggleBtn.classList.remove('ring-4', 'ring-blue-400');
     }
+    const mainCoordInfo = document.getElementById('coord-info');
+    if (mainCoordInfo) mainCoordInfo.style.opacity = "1";
 }
 
-// Tambahkan parameter isManual di sini
-function turnOnWeatherSystem(isManual = false) {
+function turnOnWeatherSystem() {
     isWeatherActive = true;
-    isWeatherManuallyToggled = isManual; // Ingat dari mana dia dinyalakan!
-    
     weatherWidget.classList.remove('hidden');
     if (weatherToggleBtn) {
         weatherToggleBtn.classList.replace('bg-slate-800', 'bg-blue-600');
         weatherToggleBtn.classList.add('ring-4', 'ring-blue-400');
     }
-    
-    // ==========================================
-    // LOGIKA GESER (Tetap ada untuk memenuhi Syarat 3)
-    // ==========================================
     const detailSidebar = document.getElementById('detail-sidebar');
     if (detailSidebar && !detailSidebar.classList.contains('-translate-x-[120%]')) {
         weatherWidget.classList.remove('md:left-4');
@@ -3000,58 +3203,81 @@ function turnOnWeatherSystem(isManual = false) {
         weatherWidget.classList.remove('md:left-[440px]');
         weatherWidget.classList.add('md:left-4');
     }
-    
-    let center = map.getCenter();
-    updateWeatherWidget(center.lat, center.lng);
+    updateWeatherWidget(PALANGKARAYA_LAT, PALANGKARAYA_LON);
 }
 
+// Tombol 🌤️ : toggle on/off
 if (weatherToggleBtn) {
     weatherToggleBtn.addEventListener('click', (e) => {
-        e.stopPropagation(); // Cegah klik ini memicu sensor auto-tutup
-        // Jika sedang nyala, matikan. Jika mati, nyalakan secara MANUAL (true)
-        isWeatherActive ? turnOffWeatherSystem() : turnOnWeatherSystem(true);
+        e.stopPropagation();
+        if (isWeatherActive) {
+            turnOffWeatherSystem();
+        } else {
+            isFirstImpression = false;   // mode manual
+            turnOnWeatherSystem();
+        }
     });
 }
 
-// --- 6. SENSOR GLOBAL: MATI OTOMATIS JIKA KLIK UI LAIN ---
-document.addEventListener('click', (e) => {
-    // Jika sistem cuaca sedang mati, abaikan
-    if (!isWeatherActive) return;
-
-    // 🛡️ KUNCI UTAMA (SYARAT 2): 
-    // Jika widget dinyalakan SECARA MANUAL (lewat tombol), JANGAN AUTO-TUTUP!
-    if (isWeatherManuallyToggled) return;
-
-    // Daftar area yang BOLEH diklik saat mode cuaca aktif (tidak memicu mati otomatis)
-    const allowedZones = [
-        'weather-widget',          // Widget Cuaca Kiri Atas
-        'bottom-forecast-panel',   // Panel Tabel Bawah
-        'btn-toggle-weather',      // Tombol Toggle 🌤️
-        'input-search',            // Kotak Pencarian Lokasi
-        'search-suggestions'       // Hasil Pencarian Lokasi
-    ];
-
-const isAllowedZone = allowedZones.some(id => e.target.closest(`#${id}`));
-    const isMapClick = e.target.closest('#map') && !e.target.closest('.leaflet-control');
-
-    if (!isAllowedZone && !isMapClick) {
-        turnOffWeatherSystem();
-    }
-});
-
-// Klik di peta HANYA memperbarui data JIKA mode cuaca sedang AKTIF
+// Klik peta — behavior tergantung mode
 map.on('click', function(e) {
-    if (isWeatherActive) {
+    if (!isWeatherActive) return;
+    if (isFirstImpression) {
+        // First impression → matikan widget (biar tampilan bersih)
+        turnOffWeatherSystem();
+    } else {
+        // Mode manual → update lokasi + buka tabel ramalan
         updateWeatherWidget(e.latlng.lat, e.latlng.lng);
-        window.openForecastPanel(); // Pakai fungsi baru ini agar LatLon diatur
+        window.openForecastPanel();
     }
 });
 
-// --- 7. AUTO-START SAAT WEBGIS PERTAMA DIBUKA ---
+// Klik peta — behavior tergantung mode
+map.on('click', function(e) {
+    if (!isWeatherActive) return;
+    if (isFirstImpression) {
+        turnOffWeatherSystem();
+    } else {
+        updateWeatherWidget(e.latlng.lat, e.latlng.lng);
+        window.openForecastPanel();
+    }
+});
+
+// Pasang handler "matikan widget" SETELAH auto-aktif suhu selesai
+// (auto-aktif suhu pakai .click() yang akan men-trigger handler ini kalau dipasang duluan)
 setTimeout(() => {
-    // Dinyalakan otomatis, bukan ditekan manual (false)
-    turnOnWeatherSystem(false); 
-}, 1000);
+    // Klik parameter (Suhu, Salinitas, EWS, dll) → matikan widget
+    document.querySelectorAll('.metocean-item, .ekstra-item').forEach(item => {
+        item.addEventListener('click', () => {
+            if (isWeatherActive) turnOffWeatherSystem();
+        });
+    });
+    
+    // Tombol lain
+    ['btn-layer-menu', 'btn-basemap', 'btn-upload-shp', 'btn-fullscreen', 
+     'btn-home', 'btn-tide-station', 'btn-thermal-front',
+     'btn-ews-mhw', 'btn-ews-mcs', 'btn-hotspot-mhw', 'btn-hotspot-mcs', 'btn-lobster', 'tab-zonasi', 'tab-metocean', 'tab-analisis'
+    ].forEach(id => {
+        const btn = document.getElementById(id);
+        if (btn) btn.addEventListener('click', () => {
+            if (isWeatherActive) turnOffWeatherSystem();
+        });
+    });
+    
+    // Search box
+    const searchBoxEl = document.getElementById('input-search');
+    if (searchBoxEl) {
+        searchBoxEl.addEventListener('click', () => { if (isWeatherActive) turnOffWeatherSystem(); });
+        searchBoxEl.addEventListener('focus', () => { if (isWeatherActive) turnOffWeatherSystem(); });
+    }
+}, 2000);   // 2 detik — lebih lama dari auto-aktif suhu (600ms) supaya tidak konflik
+
+// AUTO-START widget cuaca
+setTimeout(() => {
+    isFirstImpression = true;
+    turnOnWeatherSystem();
+}, 1200);
+
 
 // ==========================================
 // 19. STASIUN PASANG SURUT (TIDE STATION)
@@ -3079,7 +3305,7 @@ document.getElementById('btn-tide-station').addEventListener('click', function()
         this.classList.add('ring-2', 'ring-yellow-400', 'shadow-md');
         
         // --- KUNCI: BIKIN MENU LAIN JADI ABU-ABU MATI ---
-        document.querySelectorAll('.metocean-item, .ekstra-item').forEach(item => {
+        document.querySelectorAll('.metocean-item, .ekstra-item, .analisis-item').forEach(item => {
             if (item.id !== 'btn-tide-station') {
                 item.classList.add('opacity-40', 'pointer-events-none', 'grayscale');
             }
@@ -3286,6 +3512,12 @@ setTimeout(async () => {
             removeNotif(); 
         };
 
+        // AKSI 2: Klik tombol ✖ untuk tutup notifikasi
+        document.getElementById('btn-close-notif').onclick = (e) => {
+            e.stopPropagation();
+            removeNotif();
+        };
+
         // AKSI 3: Jika layar/area lain diklik, hilangkan notifikasi otomatis!
         function handleGlobalClick(e) {
             // Jika yang diklik adalah notifikasi itu sendiri (atau isinya), biarkan saja
@@ -3440,6 +3672,7 @@ window.renderPetaBulan = function(bulan) {
 // ==========================================
 let ewsLayer = null;
 let activeEwsType = null;
+let ewsChartInstance = null;
 
 async function toggleEWS(type) {
     let isCurrentlyActive = (activeEwsType === type);
@@ -3448,7 +3681,7 @@ async function toggleEWS(type) {
     if (!isCurrentlyActive) {
         activeEwsType = type;
         let btnId = type === 'mhw' ? 'btn-ews-mhw' : 'btn-ews-mcs';
-        let cbId = type === 'mhw' ? 'cb-ews-mhw' : 'cb-ews-mcs';
+        let cbId  = type === 'mhw' ? 'cb-ews-mhw'  : 'cb-ews-mcs';
         
         document.getElementById(cbId).checked = true;
         let btn = document.getElementById(btnId);
@@ -3464,7 +3697,6 @@ async function toggleEWS(type) {
         document.getElementById('displayTime').textContent = "Memindai area lautan...";
 
         try {
-            // URL Render-mu nanti dimasukkan ke sini ya kalau sudah di-deploy!
             const res = await fetch(`https://api-webgis-kalteng.onrender.com/api/${type === 'mhw' ? 'mhw' : 'mcs'}/realtime`);
             if (!res.ok) throw new Error("Data EWS belum tersedia");
             const dataEws = await res.json();
@@ -3479,19 +3711,49 @@ async function toggleEWS(type) {
                 return;
             }
 
-            let colorHex = type === 'mhw' ? "#ef4444" : "#0ea5e9"; // Merah MHW, Biru Terang MCS
+            let colorHex  = type === 'mhw' ? "#ef4444" : "#0ea5e9";
             let titleText = type === 'mhw' ? "🔥 Bahaya Panas (MHW)" : "❄️ Bahaya Dingin (MCS)";
 
             dataEws.data_peringatan.forEach(titik => {
-                let bounds = [ [titik.lat - 0.0415, titik.lon - 0.0415], [titik.lat + 0.0415, titik.lon + 0.0415] ];
-                L.rectangle(bounds, { color: colorHex, weight: 1, fillColor: colorHex, fillOpacity: 0.6 })
-                .bindPopup(`
-                    <div class="text-center">
-                        <b style="color:${colorHex}" class="text-xs uppercase block border-b border-gray-200 pb-1 mb-1">${titleText}</b>
-                        <span class="text-[10px] text-gray-700">Suhu Prediksi: <b>${titik.suhu_prediksi} °C</b></span><br>
-                        <span class="text-[10px] text-gray-700">Batas Toleransi: <b>${titik.batas_wajar} °C</b></span>
+                let bounds = [
+                    [titik.lat - 0.0415, titik.lon - 0.0415],
+                    [titik.lat + 0.0415, titik.lon + 0.0415]
+                ];
+                
+                let rect = L.rectangle(bounds, {
+                    color: colorHex, weight: 1,
+                    fillColor: colorHex, fillOpacity: 0.6
+                }).addTo(ewsLayer);
+                
+                rect._ewsData = { 
+                    lat: titik.lat, lon: titik.lon,
+                    suhu_prediksi: titik.suhu_prediksi,
+                    batas_wajar: titik.batas_wajar,
+                    type: type, title: titleText, color: colorHex
+                };
+                
+                const selisih = (titik.suhu_prediksi - titik.batas_wajar).toFixed(2);
+                const arah    = type === 'mhw' ? '+' : '';
+                
+                // ─── HOVER pakai bindTooltip Leaflet (anti konflik) ───────
+                rect.bindTooltip(`
+                    <div class="text-center font-sans">
+                        <b style="color:${colorHex}" class="text-[10px] uppercase block border-b border-gray-300 pb-1 mb-1">${titleText}</b>
+                        <span class="text-[10px] font-bold">Suhu: ${titik.suhu_prediksi.toFixed(2)} °C</span><br>
+                        <span class="text-[10px]">Batas: ${titik.batas_wajar.toFixed(2)} °C</span><br>
+                        <span class="text-[10px] font-bold" style="color:${colorHex}">Anomali: ${arah}${selisih} °C</span><br>
+                        <span class="text-[9px] text-blue-600 italic mt-1 block">Klik untuk lihat grafik</span>
                     </div>
-                `).addTo(ewsLayer);
+                `, { direction: 'top', sticky: true, opacity: 1 });
+                
+                rect.on('mouseover', function() { this.setStyle({ weight: 3, fillOpacity: 0.85 }); });
+                rect.on('mouseout',  function() { this.setStyle({ weight: 1, fillOpacity: 0.60 }); });
+                
+                // ─── KLIK: buka sidebar Detail Kawasan dengan grafik ─────
+                rect.on('click', function(e) {
+                    L.DomEvent.stopPropagation(e);
+                    showEwsTimeSeries(this._ewsData);
+                });
             });
 
         } catch (error) {
@@ -3504,13 +3766,158 @@ async function toggleEWS(type) {
     }
 }
 
-// Pasang sensor klik untuk tombolnya!
+
+// ==========================================
+// FUNGSI: TAMPILKAN GRAFIK TIME SERIES UNTUK PIXEL EWS
+// Pakai #detail-sidebar (sama dengan parameter lain — close button auto bekerja)
+// ==========================================
+async function showEwsTimeSeries(d) {
+    const sidebar        = document.getElementById('detail-sidebar');
+    const sidebarContent = document.getElementById('sidebar-content');
+    if (!sidebar || !sidebarContent) return;
+    
+    const isMhw     = (d.type === 'mhw');
+    const lineColor = isMhw ? '#ef4444' : '#0ea5e9';
+    const bgColor   = isMhw ? 'rgba(239,68,68,0.15)' : 'rgba(14,165,233,0.15)';
+    const judul     = isMhw ? '🔥 Marine Heat Wave (MHW)' : '❄️ Marine Cold Spell (MCS)';
+    const selisih   = (d.suhu_prediksi - d.batas_wajar).toFixed(2);
+    const anomColor = isMhw ? 'text-red-600' : 'text-blue-600';
+    
+    // Buat HTML sidebar (mirip DETAIL KAWASAN parameter biasa)
+    sidebarContent.innerHTML = `
+        <div class="space-y-3">
+            <div class="bg-gradient-to-r ${isMhw ? 'from-red-50 to-orange-50 border-red-200' : 'from-blue-50 to-cyan-50 border-blue-200'} p-3 rounded-lg border">
+                <h4 class="text-[11px] font-extrabold ${isMhw ? 'text-red-700' : 'text-blue-700'} uppercase tracking-wide mb-2">${judul}</h4>
+                <div class="text-[10px] text-gray-700 leading-relaxed space-y-0.5">
+                    <div>Lokasi: <b>${d.lat.toFixed(4)}°, ${d.lon.toFixed(4)}°</b></div>
+                    <div>Suhu saat ini: <b>${d.suhu_prediksi.toFixed(2)} °C</b></div>
+                    <div>Ambang batas (persentil 90): <b>${d.batas_wajar.toFixed(2)} °C</b></div>
+                    <div>Anomali: <b class="${anomColor}">${selisih >= 0 ? '+' : ''}${selisih} °C</b></div>
+                </div>
+            </div>
+            
+            <div>
+                <label class="text-[10px] font-bold text-gray-500 uppercase">Prakiraan Suhu 10 Hari</label>
+                <div class="relative h-48 w-full mt-1 bg-white border border-gray-200 rounded p-2">
+                    <span id="loading-ews" class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-[10px] text-blue-600 font-bold animate-pulse">Memuat data...</span>
+                    <canvas id="chartEws" class="w-full h-full"></canvas>
+                </div>
+            </div>
+            
+            <div id="ews-status-note" class="p-2 rounded text-[10px] text-gray-700 border ${isMhw ? 'border-red-200 bg-red-50' : 'border-blue-200 bg-blue-50'}">
+                <span class="italic">Menganalisis hari berturut-turut...</span>
+            </div>
+        </div>
+    `;
+    
+    // Buka sidebar
+    sidebar.classList.remove('-translate-x-[120%]');
+    
+    try {
+        const tsRes = await fetch(`https://api-webgis-kalteng.onrender.com/api/timeseries?lat=${d.lat}&lon=${d.lon}&param=suhu`);
+        if (!tsRes.ok) throw new Error("Gagal mengambil data");
+        const tsData = await tsRes.json();
+        
+        const loadingEl = document.getElementById('loading-ews');
+        if (loadingEl) loadingEl.remove();
+        
+        let labels = [], values = [];
+        const dataArr = tsData.data || tsData.values || tsData;
+        
+        if (Array.isArray(dataArr)) {
+            for (let i = 0; i < 10; i++) {
+                const idx = Math.min(i * 24 + 12, dataArr.length - 1);
+                if (idx >= dataArr.length) break;
+                const labelIdx = Math.min(i * 24 + 12, 239);
+                labels.push(hourlyDates[labelIdx] ? hourlyDates[labelIdx].split(' - ')[0] : `H${i+1}`);
+                values.push(Number(dataArr[idx]));
+            }
+        }
+        
+        const thresholdLine = new Array(labels.length).fill(d.batas_wajar);
+        
+        let beruturut = 0, maxBeruturut = 0;
+        values.forEach(v => {
+            const lewat = isMhw ? (v > d.batas_wajar) : (v < d.batas_wajar);
+            if (lewat) { beruturut++; if (beruturut > maxBeruturut) maxBeruturut = beruturut; }
+            else { beruturut = 0; }
+        });
+        
+        const ctx = document.getElementById('chartEws').getContext('2d');
+        if (ewsChartInstance) ewsChartInstance.destroy();
+        
+        ewsChartInstance = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'Suhu Prediksi',
+                        data: values,
+                        borderColor: lineColor,
+                        backgroundColor: bgColor,
+                        borderWidth: 2.5,
+                        tension: 0.3,
+                        pointRadius: 4,
+                        pointBackgroundColor: values.map(v => {
+                            const lewat = isMhw ? (v > d.batas_wajar) : (v < d.batas_wajar);
+                            return lewat ? lineColor : '#9ca3af';
+                        }),
+                        fill: true
+                    },
+                    {
+                        label: `Ambang ${d.batas_wajar.toFixed(2)}°C`,
+                        data: thresholdLine,
+                        borderColor: '#000',
+                        borderWidth: 1.5,
+                        borderDash: [5, 4],
+                        pointRadius: 0,
+                        fill: false
+                    }
+                ]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'bottom', labels: { font: { size: 8 }, boxWidth: 10 } },
+                    tooltip: {
+                        callbacks: {
+                            label: c => {
+                                const v = c.parsed.y;
+                                const s = (v - d.batas_wajar).toFixed(2);
+                                return c.dataset.label.startsWith('Ambang')
+                                    ? `Threshold: ${v.toFixed(2)} °C`
+                                    : `Suhu: ${v.toFixed(2)} °C  (Δ ${s > 0 ? '+' : ''}${s})`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: { ticks: { font: { size: 8 } } },
+                    x: { ticks: { font: { size: 7 }, maxRotation: 45 } }
+                }
+            }
+        });
+        
+        const noteEl = document.getElementById('ews-status-note');
+        if (noteEl) {
+            noteEl.innerHTML = (maxBeruturut >= 5)
+                ? `<b class="${isMhw ? 'text-red-700' : 'text-blue-700'}">⚠ Status Kritis:</b> Terdeteksi <b>${maxBeruturut} hari berturut-turut</b> melewati ambang batas. Memenuhi kriteria ${isMhw ? 'MHW' : 'MCS'} resmi (≥5 hari).`
+                : `<b>Status:</b> Terdeteksi <b>${maxBeruturut} hari</b> ${isMhw ? 'di atas' : 'di bawah'} ambang batas. Belum memenuhi kriteria ${isMhw ? 'MHW' : 'MCS'} resmi (≥5 hari berturut-turut).`;
+        }
+        
+    } catch (err) {
+        console.error("Error EWS time series:", err);
+        const loadingEl = document.getElementById('loading-ews');
+        if (loadingEl) loadingEl.textContent = "Gagal memuat data";
+    }
+}
+
+// Pasang sensor klik untuk tombolnya
 const btnMhw = document.getElementById('btn-ews-mhw');
 const btnMcs = document.getElementById('btn-ews-mcs');
 if (btnMhw) btnMhw.addEventListener('click', () => toggleEWS('mhw'));
 if (btnMcs) btnMcs.addEventListener('click', () => toggleEWS('mcs'));
-
-
 
 // ==========================================
 // FITUR EKSTRA: PANEL POTENSI IKAN THERMAL FRONT
@@ -3563,22 +3970,563 @@ function toggleFishPanel(show) {
 
 // ==========================================
 // AUTO-AKTIFKAN PARAMETER SUHU SAAT WEB DIBUKA
+// + AUTO-SCROLL KE KOTAK SUHU AGAR LANGSUNG TERLIHAT
 // ==========================================
 window.addEventListener('load', () => {
-    // Tunggu 600ms agar semua skrip & peta siap
     setTimeout(() => {
         const itemSuhu = document.querySelector('.metocean-item[data-type="suhu"]');
-        if (itemSuhu) {
-            // Trigger klik pada item Suhu agar layer SST otomatis aktif
-            // Buka panel layer-menu dan pilih tab MetOcean
-            const layerMenu = document.getElementById('layer-menu');
-            if (layerMenu) layerMenu.classList.remove('hidden');
-            const tabMetOcean = document.getElementById('tab-metocean');
-            if (tabMetOcean) tabMetOcean.click();
-            itemSuhu.click();
-            console.log("✓ Parameter Suhu diaktifkan sebagai default");
-        } else {
+        if (!itemSuhu) {
             console.warn("Item Suhu tidak ditemukan di halaman");
+            return;
         }
+        
+        // 1. Klik kotak Suhu agar layer SST aktif
+        itemSuhu.click();
+        console.log("✓ Parameter Suhu diaktifkan sebagai default");
+        
+        // 2. Buka panel layer-menu dan pilih tab MetOcean
+        const layerMenu = document.getElementById('layer-menu');
+        if (layerMenu) layerMenu.classList.remove('hidden');
+        
+        const tabMetOcean = document.getElementById('tab-metocean');
+        if (tabMetOcean) tabMetOcean.click();
+        
+        // 3. Auto-scroll panel ke kotak Suhu setelah jeda 200ms
+        //    (jeda dibutuhkan agar tab MetOcean sudah tampil dulu)
+        setTimeout(() => {
+            const scrollContainer = document.getElementById('parameter-list-metocean');
+            if (scrollContainer && itemSuhu) {
+                // Hitung posisi kotak Suhu relatif terhadap container scroll
+                const containerRect = scrollContainer.getBoundingClientRect();
+                const itemRect      = itemSuhu.getBoundingClientRect();
+                const offset = itemRect.top - containerRect.top + scrollContainer.scrollTop;
+                
+                // Geser sedikit ke atas (60px) agar header "Ocean (Laut)" juga terlihat
+                scrollContainer.scrollTo({
+                    top:      Math.max(0, offset - 60),
+                    behavior: 'smooth'
+                });
+                console.log("✓ Panel di-scroll ke kotak Suhu");
+            }
+        }, 200);
+        
     }, 600);
 });
+
+
+
+// ============================================================
+// MODAL PENCARIAN LOKASI & KOORDINAT
+// ============================================================
+
+// Buka modal saat user klik kotak search di header
+document.getElementById('input-search').addEventListener('focus', function(e) {
+    openSearchModal();
+    this.blur();   // unfocus agar modal yang fokus
+});
+document.getElementById('input-search').addEventListener('click', function(e) {
+    openSearchModal();
+});
+
+function openSearchModal() {
+    document.getElementById('search-modal').classList.remove('hidden');
+    setTimeout(() => document.getElementById('modal-search-lokasi').focus(), 100);
+}
+
+function closeSearchModal() {
+    document.getElementById('search-modal').classList.add('hidden');
+    document.getElementById('modal-suggestions').classList.add('hidden');
+}
+
+// Tab Lokasi / Koordinat
+function switchSearchTab(tab) {
+    const tabLokasi    = document.getElementById('search-tab-lokasi');
+    const tabKoord     = document.getElementById('search-tab-koordinat');
+    const contentLokasi= document.getElementById('search-content-lokasi');
+    const contentKoord = document.getElementById('search-content-koordinat');
+    
+    if (tab === 'lokasi') {
+        tabLokasi.classList.add('border-blue-600','text-blue-600');
+        tabLokasi.classList.remove('border-transparent','text-gray-500');
+        tabKoord.classList.remove('border-blue-600','text-blue-600');
+        tabKoord.classList.add('border-transparent','text-gray-500');
+        contentLokasi.classList.remove('hidden');
+        contentKoord.classList.add('hidden');
+    } else {
+        tabKoord.classList.add('border-blue-600','text-blue-600');
+        tabKoord.classList.remove('border-transparent','text-gray-500');
+        tabLokasi.classList.remove('border-blue-600','text-blue-600');
+        tabLokasi.classList.add('border-transparent','text-gray-500');
+        contentKoord.classList.remove('hidden');
+        contentLokasi.classList.add('hidden');
+    }
+}
+
+// Sub-tab Desimal / DMS
+function switchFormatTab(format) {
+    const tabDec  = document.getElementById('format-tab-desimal');
+    const tabDms  = document.getElementById('format-tab-dms');
+    const formDec = document.getElementById('form-desimal');
+    const formDms = document.getElementById('form-dms');
+    
+    if (format === 'desimal') {
+        tabDec.classList.add('bg-white','shadow','text-blue-600');
+        tabDec.classList.remove('text-gray-500');
+        tabDms.classList.remove('bg-white','shadow','text-blue-600');
+        tabDms.classList.add('text-gray-500');
+        formDec.classList.remove('hidden');
+        formDms.classList.add('hidden');
+    } else {
+        tabDms.classList.add('bg-white','shadow','text-blue-600');
+        tabDms.classList.remove('text-gray-500');
+        tabDec.classList.remove('bg-white','shadow','text-blue-600');
+        tabDec.classList.add('text-gray-500');
+        formDms.classList.remove('hidden');
+        formDec.classList.add('hidden');
+    }
+}
+
+// ── Eksekusi Cari Lokasi (Nominatim) ────────────────────────────
+async function executeSearchLokasi() {
+    const query = document.getElementById('modal-search-lokasi').value.trim();
+    if (!query) {
+        alert('Masukkan nama lokasi terlebih dahulu');
+        return;
+    }
+    try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`);
+        const data = await res.json();
+        if (data && data.length > 0) {
+            flyToLocation(parseFloat(data[0].lat), parseFloat(data[0].lon), data[0].display_name);
+            closeSearchModal();
+        } else {
+            alert('Lokasi tidak ditemukan!');
+        }
+    } catch (e) {
+        alert('Gagal mencari lokasi: ' + e.message);
+    }
+}
+
+// Autocomplete di dalam modal
+document.getElementById('modal-search-lokasi').addEventListener('input', function() {
+    const query = this.value;
+    const suggestionsBox = document.getElementById('modal-suggestions');
+    
+    if (query.length < 3) {
+        suggestionsBox.classList.add('hidden');
+        return;
+    }
+    
+    fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&countrycodes=id`)
+        .then(res => res.json())
+        .then(data => {
+            suggestionsBox.innerHTML = '';
+            if (data.length > 0) {
+                suggestionsBox.classList.remove('hidden');
+                data.forEach(place => {
+                    const item = document.createElement('div');
+                    item.className = "px-3 py-2 hover:bg-blue-100 cursor-pointer text-xs text-gray-800 border-b border-gray-200 last:border-b-0";
+                    item.textContent = place.display_name;
+                    item.onclick = () => {
+                        flyToLocation(parseFloat(place.lat), parseFloat(place.lon), place.display_name);
+                        closeSearchModal();
+                    };
+                    suggestionsBox.appendChild(item);
+                });
+            } else {
+                suggestionsBox.classList.add('hidden');
+            }
+        });
+});
+
+// ── Eksekusi Cari Koordinat ──────────────────────────────────────
+function executeSearchKoordinat() {
+    const isDms = !document.getElementById('form-dms').classList.contains('hidden');
+    let lat, lon;
+    
+    if (isDms) {
+        // DMS mode
+        const latDeg = parseFloat(document.getElementById('dms-lat-deg').value) || 0;
+        const latMin = parseFloat(document.getElementById('dms-lat-min').value) || 0;
+        const latSec = parseFloat(document.getElementById('dms-lat-sec').value) || 0;
+        const latDir = document.getElementById('dms-lat-dir').value;
+        
+        const lonDeg = parseFloat(document.getElementById('dms-lon-deg').value) || 0;
+        const lonMin = parseFloat(document.getElementById('dms-lon-min').value) || 0;
+        const lonSec = parseFloat(document.getElementById('dms-lon-sec').value) || 0;
+        const lonDir = document.getElementById('dms-lon-dir').value;
+        
+        lat = latDeg + latMin/60 + latSec/3600;
+        if (latDir === 'S') lat = -lat;
+        
+        lon = lonDeg + lonMin/60 + lonSec/3600;
+        if (lonDir === 'W') lon = -lon;
+        
+    } else {
+        // Desimal mode
+        lat = parseFloat(document.getElementById('dec-lat').value);
+        lon = parseFloat(document.getElementById('dec-lon').value);
+        if (document.getElementById('dec-lat-dir').value === 'S' && lat > 0) lat = -lat;
+        if (document.getElementById('dec-lon-dir').value === 'W' && lon > 0) lon = -lon;
+    }
+    
+    // Validasi
+    if (isNaN(lat) || isNaN(lon) || lat === 0 && lon === 0) {
+        alert('Masukkan nilai koordinat yang valid');
+        return;
+    }
+    if (lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+        alert('Koordinat di luar rentang valid!\nLatitude harus -90 sampai 90\nLongitude harus -180 sampai 180');
+        return;
+    }
+    
+    flyToLocation(lat, lon, `Koordinat: ${lat.toFixed(5)}°, ${lon.toFixed(5)}°`);
+    closeSearchModal();
+}
+
+// Helper: terbang ke lokasi + tampilkan marker
+function flyToLocation(lat, lon, label) {
+    map.flyTo([lat, lon], 12);
+    L.marker([lat, lon]).addTo(map).bindPopup(`<b>📍 ${label}</b>`).openPopup();
+}
+
+
+// ==========================================
+// ANALISIS KESESUAIAN BUDIDAYA LOBSTER KJA
+// ==========================================
+let lobsterLayer = null;
+let lobsterData  = null;
+let isLobsterActive = false;
+
+async function toggleLobster() {
+    if (isLobsterActive) {
+        // matikan layer
+        isLobsterActive = false;
+        if (lobsterLayer) { map.removeLayer(lobsterLayer); lobsterLayer = null; }
+        document.getElementById('legenda-lobster')?.remove();
+        document.getElementById('btn-lobster')?.classList.remove('ring-2','ring-orange-400','shadow-md');
+        const cb = document.getElementById('cb-lobster');
+        if (cb) cb.checked = false;
+        document.getElementById('displayPanel')?.classList.add('hidden');
+        
+        // TUTUP juga sidebar detail (kalau sedang menampilkan detail lobster)
+        const sidebar = document.getElementById('detail-sidebar');
+        if (sidebar) sidebar.classList.add('-translate-x-[120%]');
+        return;
+    }
+    
+    if (typeof matikanSemuaLayer === 'function') matikanSemuaLayer();
+    
+    isLobsterActive = true;
+    document.getElementById('cb-lobster').checked = true;
+    document.getElementById('btn-lobster').classList.add('ring-2','ring-orange-400','shadow-md');
+    document.getElementById('displayPanel').classList.remove('hidden');
+    document.getElementById('displayTitle').textContent = "🦞 Kesesuaian Lobster KJA";
+    document.getElementById('displayTime').textContent  = "Memuat data analisis...";
+    
+    try {
+        if (!lobsterData) {
+            const res = await fetch('./data/kesesuaian_lobster.json');
+            if (!res.ok) throw new Error(`HTTP ${res.status} - file tidak ditemukan`);
+            lobsterData = await res.json();
+        }
+        document.getElementById('displayTime').textContent = 
+            `Klimatologi 30-tahun | ${lobsterData.pixels.length} pixel | Lesmana et al. (2022)`;
+        
+        if (lobsterLayer) map.removeLayer(lobsterLayer);
+        lobsterLayer = L.layerGroup().addTo(map);
+        
+        const RES = 0.02;
+        const colorMap = { S1: '#2d6a4f', S2: '#f4d35e', S3: '#d62828' };
+        
+        lobsterData.pixels.forEach(p => {
+            const bounds = [[p.lat - RES, p.lon - RES], [p.lat + RES, p.lon + RES]];
+            const color  = colorMap[p.class];
+            const rect = L.rectangle(bounds, {
+                color: color, weight: 0.5,
+                fillColor: color, fillOpacity: 0.8     // lebih solid (was 0.55)
+            }).addTo(lobsterLayer);
+            rect._lobster = p;
+            
+            rect.bindTooltip(buildLobsterTooltip(p, lobsterData.metadata), {
+                direction: 'top', sticky: true, opacity: 0.95, className: 'lobster-tooltip'
+            });
+            rect.on('mouseover', function() { this.setStyle({ weight: 2.5, fillOpacity: 1.0 }); });
+            rect.on('mouseout',  function() { this.setStyle({ weight: 0.5, fillOpacity: 0.8 }); });
+            rect.on('click', function(e) {
+                L.DomEvent.stopPropagation(e);
+                showLobsterSidebar(this._lobster, lobsterData.metadata);
+            });
+        });
+        
+        showLobsterLegend();
+        
+    } catch (err) {
+        console.error(err);
+        document.getElementById('displayTime').textContent = "❌ Gagal memuat: " + err.message;
+        alert("Gagal memuat data kesesuaian lobster:\n" + err.message + 
+              "\n\nPastikan file 'data/kesesuaian_lobster.json' ada di folder web.");
+    }
+}
+
+function buildLobsterTooltip(p, meta) {
+    const cls = meta.classification[p.class];
+    const c = meta.criteria;
+    function row(k) {
+        const v = p.params[k], s = p.scores[k];
+        if (v === null) return '';
+        const dot = s === 3 ? '🟢' : (s === 2 ? '🟡' : '🔴');
+        return `<tr><td class="text-left pr-2 py-0.5">${c[k].name}</td><td class="font-bold pr-1">${v}${c[k].unit}</td><td>${dot}</td></tr>`;
+    }
+    return `
+        <div class="font-sans" style="min-width: 200px;">
+            <div class="text-center pb-1 mb-1 border-b border-gray-300">
+                <div class="text-[14px] font-extrabold" style="color:${cls.color}">SI = ${p.si}</div>
+                <div class="text-[10px] font-bold" style="color:${cls.color}">${p.class} — ${cls.label}</div>
+            </div>
+            <table class="text-[10px] w-full">
+                ${row('depth')}${row('sst')}${row('salinity')}${row('current')}
+                ${row('do')}${row('ph')}${row('no3')}${row('po4')}
+            </table>
+            <div class="text-[9px] text-blue-600 italic text-center mt-1">Klik untuk detail lengkap</div>
+        </div>
+    `;
+}
+
+function showLobsterSidebar(p, meta) {
+    const sidebar = document.getElementById('detail-sidebar');
+    const sbContent = document.getElementById('sidebar-content');
+    if (!sidebar || !sbContent) return;
+    
+    const cls = meta.classification[p.class];
+    const c   = meta.criteria;
+    
+    let tableRows = '';
+    Object.keys(c).forEach(k => {
+        const param = c[k], v = p.params[k], score = p.scores[k];
+        if (v === null) return;
+        const scoreLabel = score === 3 ? 'S1 ✓' : (score === 2 ? 'S2' : 'S3 ✗');
+        const scoreClass = score === 3 ? 'text-green-700 bg-green-100' : 
+                           score === 2 ? 'text-yellow-700 bg-yellow-100' : 
+                           'text-red-700 bg-red-100';
+        const s1Range = `${param.s1[0]}–${param.s1[1]}${param.unit}`;
+        tableRows += `
+            <tr class="border-b border-gray-100">
+                <td class="py-1.5 pl-2 pr-2 font-semibold">${param.name}</td>
+                <td class="text-center font-bold">${v} ${param.unit}</td>
+                <td class="text-center text-gray-500 text-[10px]">${s1Range}</td>
+                <td class="text-center pr-2"><span class="px-2 py-0.5 rounded ${scoreClass} text-[10px] font-bold">${scoreLabel}</span></td>
+            </tr>
+        `;
+    });
+    
+    const limitingFactors = Object.keys(c).filter(k => p.scores[k] === 1).map(k => c[k].name);
+    let recText;
+    if (p.class === 'S1') {
+        recText = `Area ini <b class="text-green-700">SESUAI</b> untuk budidaya lobster sistem KJA. Semua parameter dalam rentang optimal sesuai Lesmana et al. (2022).`;
+    } else if (p.class === 'S2') {
+        recText = limitingFactors.length > 0 
+            ? `Area ini <b class="text-yellow-700">CUKUP SESUAI</b>. Parameter di luar rentang S1: <b>${limitingFactors.join(', ')}</b>.`
+            : `Area ini <b class="text-yellow-700">CUKUP SESUAI</b> dengan beberapa parameter berada di rentang S2.`;
+    } else {
+        recText = `Area ini <b class="text-red-700">TIDAK SESUAI</b> untuk KJA lobster. Parameter pembatas utama: <b>${limitingFactors.join(', ')}</b>.`;
+    }
+    
+    sbContent.innerHTML = `
+        <div class="space-y-3">
+            <div class="p-4 rounded-lg" style="background: linear-gradient(135deg, ${cls.color}22, ${cls.color}11); border-left: 4px solid ${cls.color}">
+                <div class="text-[10px] font-bold uppercase tracking-wider text-gray-600">Suitability Index</div>
+                <div class="flex items-baseline gap-2 mt-1">
+                    <span class="text-3xl font-black" style="color:${cls.color}">${p.si}</span>
+                    <span class="text-sm font-bold text-gray-500">/ 100</span>
+                </div>
+                <div class="mt-2">
+                    <span class="inline-block px-2 py-1 rounded text-[10px] font-extrabold text-white" style="background:${cls.color}">${p.class} — ${cls.label}</span>
+                </div>
+                <div class="text-[10px] text-gray-600 mt-2">📍 ${p.lat}°, ${p.lon}°</div>
+            </div>
+            
+            <div class="bg-blue-50 p-3 rounded-lg border-l-4 border-blue-400 text-[10px] text-gray-700 leading-relaxed">
+                💡 <b>Rekomendasi:</b> ${recText}
+            </div>
+            
+            <div>
+                <label class="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Detail Parameter</label>
+                <div class="mt-1 bg-white border border-gray-200 rounded overflow-hidden">
+                    <table class="w-full text-[11px]">
+                        <thead class="bg-gray-100 text-[9px] uppercase">
+                            <tr>
+                                <th class="text-left py-1.5 pl-2">Parameter</th>
+                                <th class="text-center">Nilai</th>
+                                <th class="text-center">Range S1</th>
+                                <th class="text-center pr-2">Skor</th>
+                            </tr>
+                        </thead>
+                        <tbody>${tableRows}</tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <div>
+                <label class="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Profil Kesesuaian Parameter</label>
+                <div class="relative h-56 mt-1 bg-white border border-gray-200 rounded p-2">
+                    <canvas id="lobsterRadar"></canvas>
+                </div>
+            </div>
+            
+            <div class="text-[9px] text-gray-500 italic leading-tight border-t pt-2">
+                <b>Klasifikasi:</b> S1=67-100 (sesuai), S2=34-67 (cukup sesuai), S3=&lt;34 (tidak sesuai).<br>
+                <b>Bobot kategori:</b> Biologi 40%, Fisik 30%, Sosek 30% (neutral).<br>
+                <b>Sumber:</b> Lesmana et al. (2022) — AQUACOASTMARINE.
+            </div>
+        </div>
+    `;
+    
+    sidebar.classList.remove('-translate-x-[120%]');
+    
+    setTimeout(() => {
+        const ctx = document.getElementById('lobsterRadar')?.getContext('2d');
+        if (!ctx) return;
+        const keys = Object.keys(c).filter(k => p.scores[k] !== null);
+        new Chart(ctx, {
+            type: 'radar',
+            data: {
+                labels: keys.map(k => c[k].name),
+                datasets: [{
+                    label: 'Skor', data: keys.map(k => p.scores[k]),
+                    backgroundColor: cls.color + '33', borderColor: cls.color,
+                    borderWidth: 2, pointBackgroundColor: cls.color, pointRadius: 4
+                }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                scales: { r: { min: 0, max: 3, ticks: { stepSize: 1, font: { size: 8 } },
+                               pointLabels: { font: { size: 9, weight: 'bold' } } } },
+                plugins: { legend: { display: false } }
+            }
+        });
+    }, 100);
+}
+
+function showLobsterLegend() {
+    document.getElementById('legenda-lobster')?.remove();
+    
+    const legend = document.createElement('div');
+    legend.id = 'legenda-lobster';
+    // Class sama persis dengan legenda parameter (legenda-container) supaya gaya konsisten
+    legend.className = 'pointer-events-auto w-full bg-white/95 backdrop-blur-sm p-1.5 px-2 rounded shadow-md border border-gray-200 mt-2';
+    
+    legend.innerHTML = `
+        <div class="text-[9px] font-extrabold text-blue-900 uppercase mb-1 text-center tracking-wider truncate flex items-center justify-center gap-1">
+            <span>🦞</span><span>KESESUAIAN LOBSTER KJA</span>
+        </div>
+        <div class="flex gap-0.5 h-2 rounded overflow-hidden shadow-inner">
+            <div class="flex-1" style="background:#d62828" title="S3 — Tidak Sesuai"></div>
+            <div class="flex-1" style="background:#f4d35e" title="S2 — Cukup Sesuai"></div>
+            <div class="flex-1" style="background:#2d6a4f" title="S1 — Sesuai"></div>
+        </div>
+        <div class="flex text-[8px] mt-0.5 leading-tight">
+            <div class="flex-1 text-center" title="Tidak Sesuai">
+                <div class="font-bold text-red-700">S3</div>
+                <div class="text-gray-400">0–33</div>
+            </div>
+            <div class="flex-1 text-center" title="Cukup Sesuai">
+                <div class="font-bold text-yellow-700">S2</div>
+                <div class="text-gray-400">34–66</div>
+            </div>
+            <div class="flex-1 text-center" title="Sesuai">
+                <div class="font-bold text-green-700">S1</div>
+                <div class="text-gray-400">67–100</div>
+            </div>
+        </div>
+        <div class="text-[8px] text-gray-500 italic text-center mt-1 pt-0.5 border-t border-gray-200 truncate">
+            📊 Sumber: Lesmana et al. (2022) — CMEMS & BATNAS (BIG)
+        </div>
+    `;
+    
+    // KUNCI: masukkan ke toolsWrapper (parent dari toolbar-bottom)
+    // Sama seperti tampilkanLegenda() — toolbar & tombol akan otomatis terdorong ke atas
+    const toolsWrapper = document.getElementById('toolbar-bottom')?.parentElement;
+    if (toolsWrapper) {
+        toolsWrapper.appendChild(legend);
+    } else {
+        document.body.appendChild(legend);  // fallback
+    }
+}
+
+document.getElementById('btn-lobster')?.addEventListener('click', toggleLobster);
+
+
+
+// Visual indikator analisis historis MHW
+function toggleMhwHistorisVisual(tahun) {
+    const panel    = document.getElementById('mhw-panel');
+    const badge    = document.getElementById('mhw-active-badge');
+    const btnReset = document.getElementById('btn-reset-mhw');
+    const helpText = document.getElementById('mhw-help-text');
+    
+    // Semua kotak parameter yang harus dimatikan saat mode historis aktif
+    const allOtherButtons = document.querySelectorAll(
+        '.metocean-item, .ekstra-item, .analisis-item, ' +
+        '#btn-ews-mhw, #btn-ews-mcs, #btn-thermal-front, #btn-tide-station, ' +
+        '#btn-hotspot-mhw, #btn-hotspot-mcs, #btn-lobster'
+    );
+    
+    if (tahun && tahun !== '') {
+        // ── Mode HISTORIS AKTIF ──
+        panel.classList.remove('border-gray-200');
+        panel.classList.add('border-green-500', 'shadow-md', 'shadow-green-200');
+        panel.style.background = 'linear-gradient(to right, #d1fae5, #dbeafe)';
+        badge?.classList.remove('hidden');
+        btnReset?.classList.remove('hidden');
+        if (helpText) helpText.innerHTML = `<b class="text-green-700">Mode Historis Aktif:</b> Slider bawah menampilkan data bulanan tahun <b>${tahun}</b>. Tombol parameter lain dinonaktifkan sementara.`;
+        
+        // MATIKAN semua layer yang sedang aktif
+        if (typeof matikanSemuaLayer === 'function') matikanSemuaLayer();
+        
+        // DISABLE semua tombol parameter lain
+        allOtherButtons.forEach(btn => {
+            btn.classList.add('opacity-30', 'pointer-events-none', 'grayscale');
+            btn.setAttribute('data-disabled-by-mhw', 'true');
+        });
+        
+    } else {
+        // ── Mode HISTORIS MATI ──
+        panel.classList.add('border-gray-200');
+        panel.classList.remove('border-green-500', 'shadow-md', 'shadow-green-200');
+        panel.style.background = '';
+        badge?.classList.add('hidden');
+        btnReset?.classList.add('hidden');
+        if (helpText) helpText.innerHTML = 'Pilih tahun untuk mengubah Slider Bawah menjadi pencarian Bulanan.';
+        
+        // ENABLE kembali semua tombol parameter
+        allOtherButtons.forEach(btn => {
+            if (btn.getAttribute('data-disabled-by-mhw') === 'true') {
+                btn.classList.remove('opacity-30', 'pointer-events-none', 'grayscale');
+                btn.removeAttribute('data-disabled-by-mhw');
+            }
+        });
+    }
+}
+
+function resetMhwHistoris() {
+    document.getElementById('pilih-tahun').value = '';
+    toggleMhwHistorisVisual('');
+    if (typeof window.fetchDataTahun === 'function') {
+        window.fetchDataTahun('');   // reset slider ke mode normal
+    }
+}
+
+
+function showDataSource(layerType) {
+    const badge = document.getElementById('data-source-badge');
+    const text  = document.getElementById('data-source-text');
+    if (badge && text) {
+        text.textContent = getSource(layerType);
+        badge.classList.remove('hidden');
+    }
+}
+
+function hideDataSource() {
+    document.getElementById('data-source-badge')?.classList.add('hidden');
+}

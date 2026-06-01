@@ -46,7 +46,7 @@
                 <div class="relative">
                     <div class="flex bg-white rounded overflow-hidden text-gray-800 shadow-inner">
                         <span class="px-2 py-1.5 bg-gray-100 border-r">🔍</span>
-                        <input id="input-search" type="text" placeholder="Cari Lokasi..." class="px-3 py-1.5 outline-none w-40 md:w-64 text-sm" autocomplete="off">
+                        <input id="input-search" type="text" placeholder="Cari lokasi atau koordinat (mis. -2.21, 113.92)" class="px-3 py-1.5 outline-none w-40 md:w-64 text-sm" autocomplete="off">
                     </div>
                     <div id="search-suggestions" class="absolute top-full left-0 w-full bg-white shadow-xl border border-gray-200 rounded-b-lg hidden z-[9999]"></div>
                 </div>
@@ -88,14 +88,15 @@
         <div class="flex space-x-1 bg-gray-100 p-1 rounded-full mb-3 border border-gray-200">
             <button id="tab-zonasi" class="flex-1 px-4 py-1.5 rounded-full text-xs font-semibold bg-blue-900 text-white shadow-md">Zonasi Pesisir</button>
             <button id="tab-metocean" class="flex-1 px-4 py-1.5 rounded-full text-xs font-semibold text-gray-600 hover:bg-gray-200">MetOcean</button>
+            <button id="tab-analisis" class="flex-1 px-4 py-1.5 rounded-full text-xs font-semibold text-gray-600 hover:bg-gray-200">Analisis</button>
         </div>
 
         <div id="parameter-list-zonasi" class="parameter-list flex flex-col space-y-2 overflow-y-auto max-h-56 pr-2">
             <div class="zonasi-item flex items-center justify-between px-3 py-2 bg-gray-100 rounded border border-gray-200 hover:bg-gray-200 transition cursor-pointer" data-file="collected/zonasi.geojson" data-name="Zonasi KKP">
-                <span class="text-xs font-medium">Zonasi KKP</span><span>🗺️</span>
+                <span class="text-xs font-medium">Zona Konservasi</span><span>🗺️</span>
             </div>
-            <div class="zonasi-item flex items-center justify-between px-3 py-2 bg-gray-100 rounded border border-gray-200 hover:bg-gray-200 transition cursor-pointer" data-file="collected/zonakkpfeb2019.geojson" data-name="Zona KKP Feb 2019">
-                <span class="text-xs font-medium">Zona KKP Feb 2019</span><span>📍</span>
+            <div class="zonasi-item flex items-center justify-between px-3 py-2 bg-gray-100 rounded border border-gray-200 hover:bg-gray-200 transition cursor-pointer" data-file="collected/zonakkpfeb2019.geojson" data-name="Zona KKP Feb">
+                <span class="text-xs font-medium">Zonasi Perda No 1 2019</span><span>📍</span>
             </div>
             <div class="zonasi-item flex items-center justify-between px-3 py-2 bg-gray-100 rounded border border-gray-200 hover:bg-gray-200 transition cursor-pointer" data-file="collected/transportasi.geojson" data-name="Transportasi & Pelabuhan">
                 <span class="text-xs font-medium">Transportasi & Pelabuhan</span><span>⚓</span>
@@ -119,62 +120,62 @@
             <div class="border border-gray-300 rounded-lg p-2 bg-gray-50 shadow-sm">
                 <h4 class="text-[11px] font-extrabold text-gray-800 mb-2">Alat Analisis Spesifik</h4>
                 
-                <div class="mhw-panel mb-3 p-2 bg-gradient-to-r from-red-50 to-blue-50 border border-gray-200 rounded text-[10px]">
-                    <h5 class="font-bold text-gray-800 mb-2 text-center uppercase tracking-wide">Analisis Historis MHW & MCS</h5>
+                <div id="mhw-panel" class="mb-3 p-2 bg-gradient-to-r from-red-50 to-blue-50 border-2 border-gray-200 rounded text-[10px] transition-all">
+                    <h5 class="font-bold text-gray-800 mb-2 text-center uppercase tracking-wide flex items-center justify-center gap-1.5">
+                        <span>Analisis Historis MHW & MCS</span>
+                        <span id="mhw-active-badge" class="hidden bg-green-500 text-white text-[8px] px-1.5 py-0.5 rounded-full font-bold animate-pulse">● AKTIF</span>
+                    </h5>
                     
                     <div class="flex gap-2 items-center mb-1">
                         <label class="w-10 font-bold text-gray-700">Tahun:</label>
-                        <select id="pilih-tahun" class="flex-1 border border-gray-300 py-1 px-2 rounded outline-none font-bold text-blue-900 bg-white" onchange="if(typeof window.fetchDataTahun === 'function') window.fetchDataTahun(this.value)">
+                        <select id="pilih-tahun" class="flex-1 border border-gray-300 py-1 px-2 rounded outline-none font-bold text-blue-900 bg-white" onchange="if(typeof window.fetchDataTahun === 'function') window.fetchDataTahun(this.value); toggleMhwHistorisVisual(this.value);">
                             <option value="">-- Pilih Tahun --</option>
                         </select>
+                        <button id="btn-reset-mhw" onclick="resetMhwHistoris()" class="hidden bg-red-500 hover:bg-red-600 text-white text-[9px] font-bold px-2 py-1 rounded transition" title="Matikan analisis historis">✕</button>
                     </div>
-                    <p class="text-[9px] text-gray-500 italic text-center leading-tight">Pilih tahun untuk mengubah Slider Bawah menjadi pencarian Bulanan.</p>
+                    <p id="mhw-help-text" class="text-[9px] text-gray-500 italic text-center leading-tight">Pilih tahun untuk mengubah Slider Bawah menjadi pencarian Bulanan.</p>
+                    <p class="text-[8px] text-gray-400 italic text-center mt-1">📊 Sumber: CMEMS Marine Heat Wave Analysis</p>
                 </div>
                 
-                <div class="grid grid-cols-2 gap-2 mb-2">
-                    <div class="ekstra-item relative flex flex-col items-center justify-end h-[60px] border-2 border-transparent bg-white rounded-md shadow-sm overflow-hidden cursor-pointer hover:border-red-400 transition group" id="btn-ews-mhw">
+                <div class="grid grid-cols-3 gap-2">
+                    <div class="ekstra-item relative flex flex-col items-center justify-end h-[70px] border-2 border-transparent bg-white rounded-md shadow-sm overflow-hidden cursor-pointer hover:border-red-400 transition group" id="btn-ews-mhw">
                         <input type="checkbox" id="cb-ews-mhw" class="absolute top-1 left-1 w-3 h-3 z-20 pointer-events-none accent-red-600">
                         <div class="absolute inset-0 bg-gradient-to-br from-red-500 via-red-600 to-yellow-500 opacity-70 group-hover:opacity-100 transition animate-pulse"></div>
                         <span class="absolute top-1 right-1 text-[10px] drop-shadow-md z-10 bg-white/50 rounded-full w-4 h-4 flex items-center justify-center">🚨</span>
-                        <div class="w-full bg-slate-800/90 text-white text-[9px] font-bold text-center py-1 z-10 leading-tight">EWS MHW (Panas)</div>
+                        <div class="w-full bg-slate-800/90 text-white text-[9px] font-bold text-center py-1 z-10 leading-tight">EWS MHW</div>
                     </div>
-                    <div class="ekstra-item relative flex flex-col items-center justify-end h-[60px] border-2 border-transparent bg-white rounded-md shadow-sm overflow-hidden cursor-pointer hover:border-blue-400 transition group" id="btn-ews-mcs">
+                    <div class="ekstra-item relative flex flex-col items-center justify-end h-[70px] border-2 border-transparent bg-white rounded-md shadow-sm overflow-hidden cursor-pointer hover:border-blue-400 transition group" id="btn-ews-mcs">
                         <input type="checkbox" id="cb-ews-mcs" class="absolute top-1 left-1 w-3 h-3 z-20 pointer-events-none accent-blue-600">
                         <div class="absolute inset-0 bg-gradient-to-br from-cyan-300 to-blue-600 opacity-70 group-hover:opacity-100 transition animate-pulse"></div>
                         <span class="absolute top-1 right-1 text-[10px] drop-shadow-md z-10 bg-white/50 rounded-full w-4 h-4 flex items-center justify-center">❄️</span>
-                        <div class="w-full bg-slate-800/90 text-white text-[9px] font-bold text-center py-1 z-10 leading-tight">EWS MCS (Dingin)</div>
+                        <div class="w-full bg-slate-800/90 text-white text-[9px] font-bold text-center py-1 z-10 leading-tight">EWS MCS</div>
                     </div>
-                </div>
-
-                <div class="grid grid-cols-2 gap-2 mb-2">
-                    <div class="ekstra-item relative flex flex-col items-center justify-end h-[60px] border-2 border-transparent bg-white rounded-md shadow-sm overflow-hidden cursor-pointer hover:border-blue-400 transition group" id="btn-thermal-front">
+                    <div class="ekstra-item relative flex flex-col items-center justify-end h-[70px] border-2 border-transparent bg-white rounded-md shadow-sm overflow-hidden cursor-pointer hover:border-blue-400 transition group" id="btn-thermal-front">
                         <input type="checkbox" id="cb-thermal-front" class="absolute top-1 left-1 w-3 h-3 z-20 pointer-events-none accent-blue-600">
                         <div class="absolute inset-0 bg-gradient-to-br from-orange-400 via-red-500 to-red-700 opacity-70 group-hover:opacity-100 transition"></div>
                         <span class="absolute top-1 right-1 text-[10px] drop-shadow-md z-10 bg-white/50 rounded-full w-4 h-4 flex items-center justify-center">🌪️</span>
                         <div class="w-full bg-slate-800/90 text-white text-[9px] font-bold text-center py-1 z-10 leading-tight">Thermal Front</div>
                     </div>
-                    <div class="ekstra-item relative flex flex-col items-center justify-end h-[60px] border-2 border-transparent bg-white rounded-md shadow-sm overflow-hidden cursor-pointer hover:border-blue-400 transition group" id="btn-tide-station">
+                    <div class="ekstra-item relative flex flex-col items-center justify-end h-[70px] border-2 border-transparent bg-white rounded-md shadow-sm overflow-hidden cursor-pointer hover:border-blue-400 transition group" id="btn-tide-station">
                         <input type="checkbox" id="cb-tide-station" class="absolute top-1 left-1 w-3 h-3 z-20 pointer-events-none accent-blue-600">
                         <div class="absolute inset-0 bg-gradient-to-b from-blue-300 to-blue-600 opacity-70 group-hover:opacity-100 transition"></div>
                         <span class="absolute top-1 right-1 text-[10px] drop-shadow-md z-10 bg-white/50 rounded-full w-4 h-4 flex items-center justify-center">⚓</span>
                         <div class="w-full bg-slate-800/90 text-white text-[9px] font-bold text-center py-1 z-10 leading-tight">Pasang Surut</div>
                     </div>
-                </div>
-
-                <div class="grid grid-cols-2 gap-2">
-                    <div class="ekstra-item relative flex flex-col items-center justify-end h-[60px] border-2 border-transparent bg-white rounded-md shadow-sm overflow-hidden cursor-pointer hover:border-orange-500 transition group" id="btn-hotspot-mhw">
+                    <div class="ekstra-item relative flex flex-col items-center justify-end h-[70px] border-2 border-transparent bg-white rounded-md shadow-sm overflow-hidden cursor-pointer hover:border-orange-500 transition group" id="btn-hotspot-mhw">
                         <input type="checkbox" id="cb-hotspot-mhw" class="absolute top-1 left-1 w-3 h-3 z-20 pointer-events-none accent-orange-600">
                         <div class="absolute inset-0 bg-gradient-to-br from-amber-400 via-orange-500 to-red-600 opacity-70 group-hover:opacity-100 transition"></div>
                         <span class="absolute top-1 right-1 text-[10px] drop-shadow-md z-10 bg-white/50 rounded-full w-4 h-4 flex items-center justify-center">🗺️</span>
-                        <div class="w-full bg-slate-800/90 text-white text-[9px] font-bold text-center py-1 z-10 leading-tight">Hotspot MHW (30 Thn)</div>
+                        <div class="w-full bg-slate-800/90 text-white text-[8px] font-bold text-center py-1 z-10 leading-tight">Hotspot MHW</div>
                     </div>
-                    <div class="ekstra-item relative flex flex-col items-center justify-end h-[60px] border-2 border-transparent bg-white rounded-md shadow-sm overflow-hidden cursor-pointer hover:border-blue-500 transition group" id="btn-hotspot-mcs">
+                    <div class="ekstra-item relative flex flex-col items-center justify-end h-[70px] border-2 border-transparent bg-white rounded-md shadow-sm overflow-hidden cursor-pointer hover:border-blue-500 transition group" id="btn-hotspot-mcs">
                         <input type="checkbox" id="cb-hotspot-mcs" class="absolute top-1 left-1 w-3 h-3 z-20 pointer-events-none accent-blue-600">
                         <div class="absolute inset-0 bg-gradient-to-br from-cyan-300 via-blue-500 to-indigo-700 opacity-70 group-hover:opacity-100 transition"></div>
                         <span class="absolute top-1 right-1 text-[10px] drop-shadow-md z-10 bg-white/50 rounded-full w-4 h-4 flex items-center justify-center">🗺️</span>
-                        <div class="w-full bg-slate-800/90 text-white text-[9px] font-bold text-center py-1 z-10 leading-tight">Hotspot MCS (30 Thn)</div>
+                        <div class="w-full bg-slate-800/90 text-white text-[8px] font-bold text-center py-1 z-10 leading-tight">Hotspot MCS</div>
                     </div>
-                </div>
+                </div>    
+            
             </div>
             <div class="border border-gray-300 rounded-lg p-2 bg-gray-50 shadow-sm mt-3">
                 <h4 class="text-[11px] font-extrabold text-gray-800 mb-2">Ocean (Laut)</h4>
@@ -243,6 +244,24 @@
             </div>
 
         </div>
+
+        <div id="parameter-list-analisis" class="parameter-list flex flex-col space-y-3 overflow-y-auto max-h-[45vh] pr-1 hidden">
+    <div>
+        <h4 class="text-[11px] font-extrabold text-gray-800 mb-2">Kesesuaian Budidaya</h4>
+        <div class="grid grid-cols-3 gap-2">
+            <div id="btn-lobster" class="analisis-item relative flex flex-col items-center justify-end h-[70px] border-2 border-transparent bg-white rounded-md shadow-sm overflow-hidden cursor-pointer hover:border-orange-400 transition group">
+                <div class="absolute inset-0 bg-gradient-to-br from-orange-300 to-red-300 opacity-50"></div>
+                <span class="absolute top-1.5 right-1.5 text-base z-10">🦞</span>
+                <input type="checkbox" id="cb-lobster" class="absolute top-1 left-1 w-3 h-3 z-10 pointer-events-none">
+                <span class="relative z-10 text-[10px] font-bold text-gray-900 pb-1.5 px-1">Lobster KJA</span>
+            </div>
+            <div class="analisis-item relative flex flex-col items-center justify-end h-[70px] border-2 border-transparent bg-gray-200 rounded-md shadow-sm overflow-hidden cursor-not-allowed opacity-60">
+                <span class="absolute top-1.5 right-1.5 text-base z-10 grayscale">🪸</span>
+                <span class="relative z-10 text-[10px] font-bold text-gray-500 pb-1.5 px-1">Terumbu (segera)</span>
+            </div>
+        </div>
+    </div>
+</div>
     </div>
 
    <div class="absolute bottom-16 right-4 z-10 flex flex-col items-end space-y-3 pointer-events-none">
@@ -337,6 +356,129 @@
             </div>
         </div>
     </div>
+
+
+<!-- ===== POPUP PENCARIAN (anchored di bawah search box) ===== -->
+<div id="search-modal" class="hidden absolute z-[10000]" style="top: 60px; left: 56px;">
+    <div class="bg-white rounded-xl shadow-2xl w-[380px] overflow-hidden border border-gray-200">
+        
+        <!-- Header popup -->
+        <div class="bg-gradient-to-r from-blue-600 to-blue-800 text-white px-4 py-2 flex justify-between items-center">
+            <h3 class="font-bold text-xs uppercase tracking-wider">🔍 Pencarian</h3>
+            <button onclick="closeSearchModal()" class="text-white/80 hover:text-white text-base leading-none">✕</button>
+        </div>
+        
+        <!-- Tabs Lokasi / Koordinat -->
+        <div class="flex border-b border-gray-200">
+            <button id="search-tab-lokasi" class="flex-1 py-2.5 text-[11px] font-bold uppercase tracking-wider border-b-2 border-blue-600 text-blue-600 transition" onclick="switchSearchTab('lokasi')">
+                📍 Cari Lokasi
+            </button>
+            <button id="search-tab-koordinat" class="flex-1 py-2.5 text-[11px] font-bold uppercase tracking-wider border-b-2 border-transparent text-gray-500 hover:text-gray-700 transition" onclick="switchSearchTab('koordinat')">
+                🧭 Cari Koordinat
+            </button>
+        </div>
+        
+        <!-- Tab content: Lokasi -->
+        <div id="search-content-lokasi" class="p-4 space-y-2">
+            <label class="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Nama tempat</label>
+            <input id="modal-search-lokasi" type="text" placeholder="Misal: Palangkaraya, Sampit..." 
+                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-400 focus:border-blue-500 outline-none"/>
+            <div id="modal-suggestions" class="hidden max-h-40 overflow-y-auto border border-gray-200 rounded-lg bg-gray-50"></div>
+            <button onclick="executeSearchLokasi()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-lg text-xs shadow transition">
+                🔍 Cari Lokasi
+            </button>
+        </div>
+        
+        <!-- Tab content: Koordinat -->
+        <div id="search-content-koordinat" class="p-4 space-y-3 hidden">
+            
+            <!-- Sub-tab Desimal / DMS -->
+            <div class="flex bg-gray-100 rounded-lg p-0.5">
+                <button id="format-tab-desimal" class="flex-1 py-1 rounded-md text-[10px] font-bold bg-white shadow text-blue-600 transition" onclick="switchFormatTab('desimal')">
+                    Desimal
+                </button>
+                <button id="format-tab-dms" class="flex-1 py-1 rounded-md text-[10px] font-bold text-gray-500 hover:text-gray-700 transition" onclick="switchFormatTab('dms')">
+                    DMS (° ' ")
+                </button>
+            </div>
+            
+            <!-- Form Desimal -->
+            <div id="form-desimal" class="space-y-2">
+                <div>
+                    <label class="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Latitude</label>
+                    <div class="flex gap-1 mt-1">
+                        <input id="dec-lat" type="number" step="any" placeholder="-2.2089" 
+                            class="flex-1 px-2 py-1.5 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-400 outline-none"/>
+                        <select id="dec-lat-dir" class="px-2 py-1.5 border border-gray-300 rounded-lg text-xs bg-white font-bold">
+                            <option value="S">S</option>
+                            <option value="N">N</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Longitude</label>
+                    <div class="flex gap-1 mt-1">
+                        <input id="dec-lon" type="number" step="any" placeholder="113.9213"
+                            class="flex-1 px-2 py-1.5 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-400 outline-none"/>
+                        <select id="dec-lon-dir" class="px-2 py-1.5 border border-gray-300 rounded-lg text-xs bg-white font-bold">
+                            <option value="E">E</option>
+                            <option value="W">W</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Form DMS -->
+            <div id="form-dms" class="space-y-2 hidden">
+                <div>
+                    <label class="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Latitude (° ' ")</label>
+                    <div class="flex gap-0.5 mt-1 items-center">
+                        <input id="dms-lat-deg" type="number" placeholder="2" class="w-12 px-1 py-1.5 border border-gray-300 rounded text-xs text-center outline-none"/>
+                        <span class="text-gray-400 text-xs">°</span>
+                        <input id="dms-lat-min" type="number" placeholder="12" class="w-12 px-1 py-1.5 border border-gray-300 rounded text-xs text-center outline-none"/>
+                        <span class="text-gray-400 text-xs">'</span>
+                        <input id="dms-lat-sec" type="number" step="any" placeholder="32" class="w-12 px-1 py-1.5 border border-gray-300 rounded text-xs text-center outline-none"/>
+                        <span class="text-gray-400 text-xs">"</span>
+                        <select id="dms-lat-dir" class="flex-1 px-1 py-1.5 border border-gray-300 rounded text-xs bg-white font-bold ml-1">
+                            <option value="S">S</option>
+                            <option value="N">N</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Longitude (° ' ")</label>
+                    <div class="flex gap-0.5 mt-1 items-center">
+                        <input id="dms-lon-deg" type="number" placeholder="113" class="w-12 px-1 py-1.5 border border-gray-300 rounded text-xs text-center outline-none"/>
+                        <span class="text-gray-400 text-xs">°</span>
+                        <input id="dms-lon-min" type="number" placeholder="55" class="w-12 px-1 py-1.5 border border-gray-300 rounded text-xs text-center outline-none"/>
+                        <span class="text-gray-400 text-xs">'</span>
+                        <input id="dms-lon-sec" type="number" step="any" placeholder="17" class="w-12 px-1 py-1.5 border border-gray-300 rounded text-xs text-center outline-none"/>
+                        <span class="text-gray-400 text-xs">"</span>
+                        <select id="dms-lon-dir" class="flex-1 px-1 py-1.5 border border-gray-300 rounded text-xs bg-white font-bold ml-1">
+                            <option value="E">E</option>
+                            <option value="W">W</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            
+            <button onclick="executeSearchKoordinat()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-lg text-xs shadow transition">
+                🚀 Meluncur ke Koordinat
+            </button>
+            
+            <p class="text-[9px] text-gray-500 italic text-center">
+                Lihat koordinat kursor di pojok kiri-bawah peta
+            </p>
+        </div>
+    </div>
+</div>
+
+<!-- Badge sumber data global -->
+<div id="data-source-badge" class="hidden absolute z-[600] bg-white/95 backdrop-blur-sm px-3 py-1.5 rounded-lg shadow-lg border border-blue-200 text-[10px] font-bold text-gray-700" style="top: 70px; right: 340px;">
+    <span class="text-gray-400 mr-1">📊</span>
+    <span class="text-gray-500 font-normal">Sumber:</span>
+    <span id="data-source-text" class="text-blue-700">—</span>
+</div>
 
     <script src="app.js"></script>
     <script src="tour.js"></script>
